@@ -1,3 +1,6 @@
+////////////////////////////
+// TODO: change code to let server waiting for another client instead of shutting down
+////////////////////////////
 /** server.c
  * CS165 Fall 2018
  *
@@ -23,10 +26,12 @@
 
 #include "common.h"
 #include "parse.h"
+#include "persist.h"
 #include "cs165_api.h"
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
+
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
@@ -40,31 +45,42 @@
  *      How will you ensure different queries invoke different execution paths in your code?
  **/
 char* execute_DbOperator(DbOperator* query) {
+    //////////////////////////////////
+    // TODO: Solve memory leak
+    //////////////////////////////////
     // there is a small memory leak here (when combined with other parts of your database.)
     // as practice with something like valgrind and to develop intuition on memory leaks, find and fix the memory leak. 
     if(!query)
     {
         return "165";
     }
-    if(query && query->type == CREATE){
-        if(query->operator_fields.create_operator.create_type == _DB){
+    if(query && query->type == CREATE) {
+        if(query->operator_fields.create_operator.create_type == _DB) {
             if (create_db(query->operator_fields.create_operator.name).code == OK) {
                 return "165";
             } else {
                 return "Failed";
             }
         }
-        else if(query->operator_fields.create_operator.create_type == _TABLE){
+        else if(query->operator_fields.create_operator.create_type == _TABLE) {
             Status create_status;
             create_table(query->operator_fields.create_operator.db, 
                 query->operator_fields.create_operator.name, 
                 query->operator_fields.create_operator.col_count, 
                 &create_status);
             if (create_status.code != OK) {
-                cs165_log(stdout, "adding a table failed.");
                 return "Failed";
             }
             return "165";
+        }else if(query->operator_fields.create_operator.create_type == _COLUMN) {
+            Status create_status;
+            create_column(query->operator_fields.create_operator.table,
+                query->operator_fields.create_operator.name,
+                query->operator_fields.create_operator.sorted,
+                &create_status);
+            if (create_status.code != OK) {
+                return "Failed";
+            }
         }
     }
     free(query);
@@ -108,15 +124,17 @@ void handle_client(int client_socket) {
             length = recv(client_socket, recv_buffer, recv_message.length,0);
             recv_message.payload = recv_buffer;
             recv_message.payload[recv_message.length] = '\0';
-
+            /////////////////////////
+            // Important workflow
+            /////////////////////////
             // 1. Parse command
             //    Query string is converted into a request for an database operator
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
 
             // 2. Handle request
-            //    Corresponding database operator is executed over the query
+            //    Corresponding database operator is exsecuted over the query
             char* result = execute_DbOperator(query);
-
+            
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
@@ -139,6 +157,8 @@ void handle_client(int client_socket) {
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
+    persist_database();
+    free_database();
 }
 
 /**
@@ -202,18 +222,24 @@ int main(void)
         exit(1);
     }
 
+    int db = load_database();
+    if (db < 0) {
+        log_info("No current database %d ...\n", server_socket);
+    }
     log_info("Waiting for a connection %d ...\n", server_socket);
 
     struct sockaddr_un remote;
     socklen_t t = sizeof(remote);
     int client_socket = 0;
 
+    // TODO: handle multiple clients
     if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
         log_err("L%d: Failed to accept a new connection.\n", __LINE__);
         exit(1);
     }
 
     handle_client(client_socket);
+    
 
     return 0;
 }

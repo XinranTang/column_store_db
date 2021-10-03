@@ -18,3 +18,16 @@ Table* lookup_table(char *name) {
 * 		What other entities are context related (and contextual with respect to what scope in your design)?
 * 		What else will you define in this file?
 **/
+Table* lookup_column(char *name) {
+	// void pattern for 'using' a variable to prevent compiler unused variable warning
+	(void) name;
+
+	return NULL;
+}
+
+Table* lookup_variables(char *name) {
+	// void pattern for 'using' a variable to prevent compiler unused variable warning
+	(void) name;
+
+	return NULL;
+}

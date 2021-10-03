@@ -5,4 +5,8 @@
 
 Table* lookup_table(char *name);
 
+Table* lookup_column(char *name);
+
+Table* lookup_variables(char *name);
+
 #endif

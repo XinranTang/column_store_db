@@ -1,8 +1,18 @@
 #ifndef CS165_HASH_TABLE // This is a header guard. It prevents the header from being included more than once.
 #define CS165_HASH_TABLE  
 
+// define the linked list as entryies in hashtable
+typedef struct bucket{
+    int key;
+    int value;
+    struct bucket *next;
+} bucket;
+
 typedef struct hashtable {
 // define the components of the hash table here (e.g. the array, bookkeeping for number of elements, etc)
+    int size;
+    int factor;
+    struct bucket *entries;
 } hashtable;
 
 typedef int keyType;

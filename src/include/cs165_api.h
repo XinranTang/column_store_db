@@ -54,6 +54,7 @@ struct Comparator;
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
     int* data;
+    bool sorted;
     // You will implement column indexes later. 
     void* index;
     //struct ColumnIndex *index;
@@ -80,6 +81,7 @@ typedef struct Table {
     Column *columns;
     size_t col_count;
     size_t table_length;
+    size_t col_capacity;
 } Table;
 
 /**
@@ -194,6 +196,9 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
     LOAD,
+    FETCH,
+    SELECT,
+    AGGREGATE,
 } OperatorType;
 
 
@@ -202,6 +207,15 @@ typedef enum CreateType {
     _TABLE,
     _COLUMN,
 } CreateType;
+
+typedef enum AggregateType {
+    AVG,
+    SUM,
+    ADD,
+    SUB,
+    MIN,
+    MAX,
+} AggregateType;
 
 /*
  * necessary fields for creation
@@ -216,6 +230,7 @@ typedef struct CreateOperator {
     Db* db;
     Table* table;
     int col_count;
+    bool sorted;
 } CreateOperator;
 
 /*
@@ -253,6 +268,7 @@ typedef struct DbOperator {
     ClientContext* context;
 } DbOperator;
 
+// extern declares current_db as global variable without any memory assigned to it
 extern Db *current_db;
 
 /* 

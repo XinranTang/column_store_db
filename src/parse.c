@@ -32,6 +32,75 @@ char* next_token(char** tokenizer, message_status* status) {
     return token;
 }
 
+char* sep_token(char** tokenizer, char* s, message_status* status) {
+    char* token = strsep(tokenizer, s);
+    if (token == NULL) {
+        *status= INCORRECT_FORMAT;
+    }
+    return token;
+}
+
+/**
+ * This method takes in a string representing the arguments to create a column.
+ * It parses those arguments, checks that they are valid, and creates a column.
+ * create(col,"class",awesomebase.grades)
+ **/
+
+
+DbOperator* parse_create_col(char* create_arguments) {
+    message_status status = OK_DONE;
+    char** create_arguments_index = &create_arguments;
+    char* column_name = next_token(create_arguments_index, &status);
+    char* table_and_db = next_token(create_arguments_index, &status);
+    bool sorted = false; // TODO: get sorted value from arguments
+
+    // Get the table name free of quotation marks
+    column_name = trim_quotes(column_name);
+    // seperate db name and table name
+    char* db_name = sep_token(&table_and_db, ".", &status);
+    char* table_name = sep_token(&table_and_db, ".", &status);
+    
+        // not enough arguments
+    if (status == INCORRECT_FORMAT) {
+        return NULL;
+    }
+
+    // read and chop off last char, which should be a ')'
+    int last_char = strlen(table_name) - 1;
+    if (table_name[last_char] != ')') {
+        return NULL;
+    }
+    // replace the ')' with a null terminating character. 
+    table_name[last_char] = '\0';
+    // check that the database argument is the current active database
+    if (!current_db || strcmp(current_db->name, db_name) != 0) {
+        cs165_log(stdout, "query unsupported. Bad db name");
+        return NULL; //QUERY_UNSUPPORTED
+    }
+    // // TODO: turn the string sorted into an boolean, and check that the input is valid.
+    // bool sorted = atoi(sorted);
+    Table* current_table = malloc(sizeof(*current_table));
+    for (size_t i = 0; i < current_db->tables_size; i++) {
+        if (strcmp(current_db->tables[i].name, table_name) == 0) {
+            current_table = &(current_db->tables[i]);
+        }
+    }
+    if (!current_table) {
+        cs165_log(stdout, "query unsupported. Bad table name");
+        return NULL;
+    }
+
+    // make create dbo for table
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = CREATE;
+    dbo->operator_fields.create_operator.create_type = _COLUMN;
+    strcpy(dbo->operator_fields.create_operator.name, column_name);
+    dbo->operator_fields.create_operator.db = current_db;
+    dbo->operator_fields.create_operator.table = current_table;
+    dbo->operator_fields.create_operator.sorted = sorted;
+    return dbo;
+}
+
 /**
  * This method takes in a string representing the arguments to create a table.
  * It parses those arguments, checks that they are valid, and creates a table.
@@ -139,6 +208,8 @@ DbOperator* parse_create(char* create_arguments) {
                 dbo = parse_create_db(tokenizer_copy);
             } else if (strcmp(token, "tbl") == 0) {
                 dbo = parse_create_tbl(tokenizer_copy);
+            } else if (strcmp(token, "col") == 0) {
+                dbo = parse_create_col(tokenizer_copy);
             } else {
                 mes_status = UNKNOWN_COMMAND;
             }
@@ -254,7 +325,6 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     if (dbo == NULL) {
         return dbo;
     }
-    
     dbo->client_fd = client_socket;
     dbo->context = context;
     return dbo;

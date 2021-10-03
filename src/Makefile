@@ -9,7 +9,7 @@ all: client server
 CC = gcc -std=c99 -g -ggdb3
 
 # Default optimization level
-O ?= 0
+O ?= 0 # TODO: change the value to 3 for optimizing
 
 # Flags and other libraries
 override CFLAGS += -Wall -Wextra -pedantic -pthread -O$(O) -I$(INCLUDES)
@@ -59,7 +59,7 @@ $(DEPSDIR)/stamp $(BUILDSTAMP):
 client: client.o utils.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-server: server.o parse.o utils.o db_manager.o client_context.o
+server: server.o parse.o persist.o utils.o db_manager.o client_context.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 clean:

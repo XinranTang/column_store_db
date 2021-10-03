@@ -1,23 +1,34 @@
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "hash_table.h"
 
 // Initialize the components of a hashtable.
 // The size parameter is the expected number of elements to be inserted.
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the parameter passed to the method is not null, if malloc fails, etc).
+// @author Xinran Tang
 int allocate(hashtable** ht, int size) {
-    // The next line tells the compiler that we know we haven't used the variable
-    // yet so don't issue a warning. You should remove this line once you use
-    // the parameter.
-    (void) ht;
-    (void) size;
+    *ht = malloc(sizeof(struct hashtable));
+    struct hashtable* newht = *ht;
+    newht -> size = size;
+    newht -> factor = size;
+    newht -> entries = (struct bucket*) malloc(size * sizeof(struct bucket));
     return 0;
 }
 
 // This method inserts a key-value pair into the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if malloc is called and fails).
+// @author Xinran Tang
 int put(hashtable* ht, keyType key, valType value) {
-    (void) ht;
-    (void) key;
-    (void) value;
+    struct bucket *root = &(ht->entries[key % ht->factor]);
+    // create a new bucket
+    struct bucket *current;
+    current = (struct bucket*) malloc(sizeof(*current));
+    current -> key = key;
+    current -> value = value;
+    current -> next = root -> next;
+    // put new bucket after root bucket
+    root -> next = current;
     return 0;
 }
 
@@ -29,29 +40,57 @@ int put(hashtable* ht, keyType key, valType value) {
 // num_values, the caller can invoke this function again (with a larger buffer)
 // to get values that it missed during the first call. 
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
+// @author Xinran Tang
 int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results) {
-    (void) ht;
-    (void) key;
-    (void) values;
-    (void) num_values;
-    (void) num_results;
+   *num_results = 0;
+    struct bucket* root = &(ht->entries[key % ht->factor]);
+    while(root->next != NULL){
+        root = root->next;
+        if(root->key == key){
+            if((*num_results)<num_values){
+                values[(*num_results)++] = root->value;
+            }else{
+                (*num_results)++;
+            }
+        }
+    }
     return 0;
 }
 
 // This method erases all key-value pairs with a given key from the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
+// @author Xinran Tang
 int erase(hashtable* ht, keyType key) {
-    (void) ht;
-    (void) key;
+    struct bucket* root = &(ht->entries[key % ht->factor]);
+    struct bucket* prev;
+    while(root->next != NULL){
+        prev = root;
+        root = root->next;
+        if(root->key == key){
+            prev->next = root->next;
+            struct bucket* current = root;
+            free(current);
+            root = prev;
+        }
+    }
     return 0;
 }
 
 // This method frees all memory occupied by the hash table.
 // It returns an error code, 0 for success and -1 otherwise.
+// @author Xinran Tang
 int deallocate(hashtable* ht) {
-    // This line tells the compiler that we know we haven't used the variable
-    // yet so don't issue a warning. You should remove this line once you use
-    // the parameter.
-    (void) ht;
+    for(int i = 0;i<ht->size;i++){
+        struct bucket* prev = &(ht->entries[i]);
+        struct bucket* next = prev->next;
+        while(next!=NULL){
+            prev = next;
+            next = next->next;
+            struct bucket* current = prev;
+            free(current);
+        }
+    }
+    free(ht->entries);
+    free(ht);
     return 0;
 }
