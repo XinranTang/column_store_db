@@ -9,19 +9,19 @@ Db *current_db;
 
 
 /* 
- * Here you will create a table object. The Status object can be used to return
+ * create a table object. The Status object can be used to return
  * to the caller that there was an error in table creation
  */
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_status) {
-	printf("123456");
+	// printf("123456");
 	// Check if current db has table_size == table_capacity
 	if(current_db->tables_size == current_db->tables_capacity){
 				// expand capacity and reallocate memory
 		current_db->tables_capacity *= 2;
 		current_db->tables = realloc(current_db->tables, current_db->tables_capacity * sizeof(Table));
-		printf("befores");
+		// printf("befores");
 		cs165_log(stdout,"%d",current_db->tables_capacity);
-		printf("134s");
+		// printf("134s");
 	}
 	// Create new table using the pre-allocated memory
 	Table* table = &(current_db->tables[current_db->tables_size]);
@@ -41,7 +41,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 }
 
 /* 
- * Similarly, this method is meant to create a database.
+ * create a database
  */
 Status create_db(const char* db_name) {
 	struct Status ret_status;
@@ -66,6 +66,9 @@ Status create_db(const char* db_name) {
 	return ret_status;
 }
 
+/*
+ * create a column
+ */
 Column* create_column(Table *table, char *name, bool sorted, Status *ret_status) {
 	// Check if current table has col num == col capacity
 	if(table->col_count == table->col_capacity){
