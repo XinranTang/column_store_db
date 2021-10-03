@@ -35,6 +35,57 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
+void execute_create(DbOperator* query, message* send_message) {
+    if(query->operator_fields.create_operator.create_type == _DB) {
+            if (create_db(query->operator_fields.create_operator.name).code == OK) {
+                send_message->status = OK_DONE;
+            } else {
+                send_message->status = OBJECT_ALREADY_EXISTS;
+            }
+        }
+        else if(query->operator_fields.create_operator.create_type == _TABLE) {
+            Status create_status;
+            create_table(query->operator_fields.create_operator.db, 
+                query->operator_fields.create_operator.name, 
+                query->operator_fields.create_operator.col_count, 
+                &create_status);
+            if (create_status.code != OK) {
+                send_message->status = EXECUTION_ERROR;
+            }
+            send_message->status = OK_DONE;
+        }else if(query->operator_fields.create_operator.create_type == _COLUMN) {
+            Status create_status;
+            create_column(query->operator_fields.create_operator.table,
+                query->operator_fields.create_operator.name,
+                query->operator_fields.create_operator.sorted,
+                &create_status);
+            if (create_status.code != OK) {
+                send_message->status = EXECUTION_ERROR;
+            }
+        }
+}
+
+void execute_insert(DbOperator* query, message* send_message) {
+    Table* insert_table = query->operator_fields.insert_operator.table;
+    if (!insert_table) {
+        send_message->status = OBJECT_NOT_FOUND;
+    }
+    // increase # of rows
+    insert_table->table_length++;
+    int* insert_values = query->operator_fields.insert_operator.values;
+    Column* columns = insert_table->columns;
+    if (!columns) {
+        send_message->status = OBJECT_NOT_FOUND;
+    }
+
+    for (size_t i = 0; i < insert_table->col_count; i++) {
+        Column* current_column = &(insert_table->columns[i]);
+        current_column->data = realloc(current_column, insert_table->table_length * sizeof(int));
+        current_column->data[insert_table->table_length-1] = insert_values[i];
+    }
+    send_message->status = OK_DONE;
+}
+
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
@@ -44,7 +95,7 @@
  *      How will you interpret different queries?
  *      How will you ensure different queries invoke different execution paths in your code?
  **/
-char* execute_DbOperator(DbOperator* query) {
+char* execute_DbOperator(DbOperator* query, message* send_message) {
     //////////////////////////////////
     // TODO: Solve memory leak
     //////////////////////////////////
@@ -55,33 +106,9 @@ char* execute_DbOperator(DbOperator* query) {
         return "165";
     }
     if(query && query->type == CREATE) {
-        if(query->operator_fields.create_operator.create_type == _DB) {
-            if (create_db(query->operator_fields.create_operator.name).code == OK) {
-                return "165";
-            } else {
-                return "Failed";
-            }
-        }
-        else if(query->operator_fields.create_operator.create_type == _TABLE) {
-            Status create_status;
-            create_table(query->operator_fields.create_operator.db, 
-                query->operator_fields.create_operator.name, 
-                query->operator_fields.create_operator.col_count, 
-                &create_status);
-            if (create_status.code != OK) {
-                return "Failed";
-            }
-            return "165";
-        }else if(query->operator_fields.create_operator.create_type == _COLUMN) {
-            Status create_status;
-            create_column(query->operator_fields.create_operator.table,
-                query->operator_fields.create_operator.name,
-                query->operator_fields.create_operator.sorted,
-                &create_status);
-            if (create_status.code != OK) {
-                return "Failed";
-            }
-        }
+        execute_create(query, send_message);
+    } else if (query && query->type == INSERT) {
+        execute_insert(query, send_message);
     }
     free(query);
     return "165";
@@ -133,7 +160,7 @@ void handle_client(int client_socket) {
 
             // 2. Handle request
             //    Corresponding database operator is exsecuted over the query
-            char* result = execute_DbOperator(query);
+            char* result = execute_DbOperator(query, &send_message);
             
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
