@@ -268,6 +268,42 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
     }
 }
 
+DbOperator* parse_load(char* query_command, message* send_message) {
+    DbOperator* dbo = NULL;
+    char *tokenizer_copy, *to_free;
+    // Since strsep destroys input, we create a copy of our input. 
+    tokenizer_copy = to_free = malloc((strlen(query_command)+1) * sizeof(char));
+    char *token;
+    strcpy(tokenizer_copy, query_command);
+    // check for leading parenthesis after create. 
+    if (strncmp(tokenizer_copy, "(", 1) == 0) {
+        tokenizer_copy++;
+        token = next_token(&tokenizer_copy, &send_message);
+        if (send_message == INCORRECT_FORMAT) {
+            return NULL;
+        } else {
+            // make create dbo
+            DbOperator* dbo = malloc(sizeof(DbOperator));
+            dbo->type = LOAD;
+            strcpy(dbo->operator_fields.load_operator.file_name, token);
+            return dbo;
+        }
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+    }
+    free(to_free);
+    return dbo;
+
+}
+
+DbOperator* parse_fetch(char* query_command, message* send_message) {
+
+}
+
+DbOperator* parse_aggregate(char* query_command, AggregateType aggregate_type, message* send_message) {
+
+}
+
 /**
  * parse_command takes as input the send_message from the client and then
  * parses it into the appropriate query. Stores into send_message the
@@ -321,6 +357,33 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
+    } else if (strncmp(query_command, "load", 4) == 0) {
+        query_command += 4;
+        dbo = parse_load(query_command, send_message);
+    } else if (strncmp(query_command, "fetch", 5) == 0) {
+        query_command += 5;
+        dbo = parse_fetch(query_command, send_message);
+    } else if (strncmp(query_command, "select", 6) == 0) {
+        query_command += 6;
+        dbo = parse_select(query_command, send_message);
+    } else if (strncmp(query_command, "avg", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, AVG, send_message);
+    } else if (strncmp(query_command, "sum", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, SUM, send_message);
+    } else if (strncmp(query_command, "add", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, ADD, send_message);
+    } else if (strncmp(query_command, "sub", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, SUB, send_message);
+    } else if (strncmp(query_command, "min", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, MIN, send_message);
+    } else if (strncmp(query_command, "max", 3) == 0) {
+        query_command += 3;
+        dbo = parse_aggregate(query_command, MAX, send_message);
     }
     if (dbo == NULL) {
         return dbo;
