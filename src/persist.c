@@ -4,7 +4,7 @@ int load_database() {
     // create database path if not exist
     struct stat st = {0};
     if (stat(CS165_DATABASE_PATH, &st) == -1) {
-        mkdir(CS165_DATABASE_PATH, 0700);
+        mkdir(CS165_DATABASE_PATH, 0600);
     }
     // open the database catalog file
     FILE* fp = fopen(DB_PATH, "rb");
@@ -41,12 +41,27 @@ int load_database() {
 }
 
 int map_column(Table* table, Column* column) {
+    // create column base path if not exist
+    struct stat st = {0};
+    if (stat(COLUMN_PATH, &st) == -1) {
+        mkdir(COLUMN_PATH, 0600);
+    }
     // mmap column data to file
 	int fd;
 	int result;
+    // concat column path for table
 	char column_path[MAX_COLUMN_PATH];
 	strcpy(column_path, COLUMN_PATH);
+    strcat(column_path, table->name);
+    strcat(column_path, PATH_SEP);
+    // create column path for table if not exist
+
+    if (stat(column_path, &st) == -1) {
+        mkdir(column_path, 0600);
+    }
+    // concat column path for column page
 	strcat(column_path, column->name);
+    strcat(column_path, ".data");
 	fd = open(column_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
 	if (fd == -1) {
 		cs165_log(stdout, "Cannot create column page file %s\n", column_path);
@@ -121,8 +136,6 @@ int persist_table(Table* current_table) {
     }
     
     fclose(fp);
-
-
     return return_flag;
 }
 
@@ -131,6 +144,7 @@ int persist_column(Table* current_table, Column* current_column) {
     char column_path[MAX_COLUMN_PATH];
 	strcpy(column_path, COLUMN_PATH);
 	strcat(column_path, current_column->name);
+    strcat(column_path, ".data");
     if (msync(current_column->data, current_table->table_length_capacity * sizeof(int), MS_SYNC) == -1) {
         cs165_log(stdout, "Memory syncing the file %s failed.\n", column_path);
         return -1;
@@ -145,10 +159,6 @@ int persist_column(Table* current_table, Column* current_column) {
 int free_database() {
     for (size_t i = 0; i < current_db->tables_size; i++) {
         Table* current_table = &(current_db->tables[i]);
-        for (size_t j = 0; j < current_table->col_count; j++) {
-            Column* current_column = &(current_table->columns[j]);
-            free(current_column->data);
-        }
         free(current_table->columns);
     }
     free(current_db->tables);

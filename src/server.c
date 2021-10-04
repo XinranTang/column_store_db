@@ -155,12 +155,7 @@ void execute_load(DbOperator* query, message* send_message) {
         send_message->status = OBJECT_NOT_FOUND;
         return;
     }
-    Table* current_table = NULL;
-    for (size_t i = 0; i < current_db->tables_size; i++) {
-        if (strcmp(current_db->tables[i].name, table_name) == 0) {
-            current_table = &(current_db->tables[i]);
-        }
-    }
+    Table* current_table = lookup_table(table_name);
     if (!current_table) {
         send_message->status = OBJECT_NOT_FOUND;
         return;
@@ -205,7 +200,46 @@ void execute_load(DbOperator* query, message* send_message) {
 }
 
 void execute_select(DbOperator* query, message* send_message) {
-
+    Column* column = &query->operator_fields.select_operator.column;
+    int low = query->operator_fields.select_operator.low;
+    int hight = query->operator_fields.select_operator.high;
+    int fd;
+	int result;
+	int select_data[query->operator_fields.select_operator.column_length];
+    // MAX_COLUMN_PATH value is also used here for context path
+    char context_path[MAX_COLUMN_PATH];
+    // create context path if not exist
+    struct stat st = {0};
+    if (stat(CONTEXT_PATH, &st) == -1) {
+        mkdir(CONTEXT_PATH, 0700);
+    }
+    // TODO: TODAY
+	strcpy(context_path, CONTEXT_PATH);
+	strcat(context_path, column->name);
+    strcat(context_path, ".context");
+	fd = open(context_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
+	if (fd == -1) {
+		cs165_log(stdout, "Cannot create column page file %s\n", context_path);
+		return -1;
+	}
+	result = lseek(fd, query->operator_fields.select_operator.column_length * sizeof(int) - 1, SEEK_SET);
+	if (result == -1) {
+		cs165_log(stdout, "Cannot lseek in column page file %s\n", context_path);
+		return NULL;
+	}
+	result = write(fd, "", 1);
+	if (result == -1) {
+		cs165_log(stdout, "Cannot write zero-byte at the end of column page file %s\n", context_path);
+		return NULL;
+	}
+	column->data = mmap(0, query->operator_fields.select_operator.column_length * sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (column->data == MAP_FAILED) {
+		close(fd);
+		cs165_log(stdout, "Memory mapping failed column page file %s\n", context_path);
+		return NULL;
+	}
+	// TODO: further check: closing the file descriptor does not unmap the region
+	close(fd);
 }
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).

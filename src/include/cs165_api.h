@@ -32,7 +32,7 @@ SOFTWARE.
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
-
+#define MAX_COLUMN_PATH 256
 /**
  * EXTRA
  * DataType
@@ -82,6 +82,7 @@ typedef struct Table {
     size_t col_count;
     size_t table_length;
     size_t col_capacity;
+    size_t table_length_capacity;
 } Table;
 
 /**
@@ -246,6 +247,19 @@ typedef struct InsertOperator {
 typedef struct LoadOperator {
     char* file_name;
 } LoadOperator;
+
+typedef struct SelectOperator {
+    Column* column;
+    size_t column_length;
+    char* result_name;
+    int low;
+    int high;
+} SelectOperator;
+
+typedef struct FetchOperator {
+    Column* column;
+    char* positions;
+} FetchOperator;
 /*
  * union type holding the fields of any operator
  */
@@ -253,6 +267,8 @@ typedef union OperatorFields {
     CreateOperator create_operator;
     InsertOperator insert_operator;
     LoadOperator load_operator;
+    SelectOperator select_operator;
+    FetchOperator fetch_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:
