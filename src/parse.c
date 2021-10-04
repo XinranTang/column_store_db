@@ -239,6 +239,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             return NULL;
         }
         // lookup the table and make sure it exists. 
+        // TODO: implement lookup table
         Table* insert_table = lookup_table(table_name);
         if (insert_table == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
@@ -270,21 +271,24 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
 
 DbOperator* parse_load(char* query_command, message* send_message) {
     DbOperator* dbo = NULL;
+    query_command = trim_parenthesis(trim_whitespace(query_command));
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input. 
-    tokenizer_copy = to_free = malloc((strlen(query_command)+1) * sizeof(char));
+    tokenizer_copy = to_free = malloc((strlen(query_command) + 1) * sizeof(char));
     char *token;
     strcpy(tokenizer_copy, query_command);
     // check for leading parenthesis after create. 
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
-        token = next_token(&tokenizer_copy, &send_message);
-        if (send_message == INCORRECT_FORMAT) {
+        token = next_token(&tokenizer_copy, send_message);
+        
+        if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         } else {
             // make create dbo
             DbOperator* dbo = malloc(sizeof(DbOperator));
             dbo->type = LOAD;
+            dbo->operator_fields.load_operator.file_name = malloc((strlen(token) + 1) * sizeof(char));
             strcpy(dbo->operator_fields.load_operator.file_name, token);
             return dbo;
         }
@@ -297,7 +301,22 @@ DbOperator* parse_load(char* query_command, message* send_message) {
 }
 
 DbOperator* parse_fetch(char* query_command, message* send_message) {
+    DbOperator* dbo = NULL;
+    char *tokenizer_copy, *to_free;
+    // Since strsep destroys input, we create a copy of our input. 
+    tokenizer_copy = to_free = malloc((strlen(query_command) + 1) * sizeof(char));
+    strcpy(tokenizer_copy, query_command);
 
+    return dbo;
+}
+
+DbOperator* parse_select(char* query_command, message* send_message) {
+    DbOperator* dbo = NULL;
+    char *tokenizer_copy, *to_free;
+    // Since strsep destroys input, we create a copy of our input. 
+    tokenizer_copy = to_free = malloc((strlen(query_command) + 1) * sizeof(char));
+    strcpy(tokenizer_copy, query_command);
+    return dbo;
 }
 
 DbOperator* parse_aggregate(char* query_command, AggregateType aggregate_type, message* send_message) {

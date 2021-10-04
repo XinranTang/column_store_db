@@ -39,8 +39,10 @@ void execute_create(DbOperator* query, message* send_message) {
     if(query->operator_fields.create_operator.create_type == _DB) {
             if (create_db(query->operator_fields.create_operator.name).code == OK) {
                 send_message->status = OK_DONE;
+                return;
             } else {
                 send_message->status = OBJECT_ALREADY_EXISTS;
+                return;
             }
         }
         else if(query->operator_fields.create_operator.create_type == _TABLE) {
@@ -51,6 +53,7 @@ void execute_create(DbOperator* query, message* send_message) {
                 &create_status);
             if (create_status.code != OK) {
                 send_message->status = EXECUTION_ERROR;
+                return;
             }
             send_message->status = OK_DONE;
         }else if(query->operator_fields.create_operator.create_type == _COLUMN) {
@@ -61,7 +64,9 @@ void execute_create(DbOperator* query, message* send_message) {
                 &create_status);
             if (create_status.code != OK) {
                 send_message->status = EXECUTION_ERROR;
+                return;
             }
+            send_message->status = OK_DONE;
         }
 }
 
@@ -69,13 +74,36 @@ void execute_insert(DbOperator* query, message* send_message) {
     Table* insert_table = query->operator_fields.insert_operator.table;
     if (!insert_table) {
         send_message->status = OBJECT_NOT_FOUND;
+        return;
     }
     // increase # of rows
     insert_table->table_length++;
+    // if # of rows is larger than table length capacity, expand capacity
+    if (insert_table->table_length > insert_table->table_length_capacity) {
+        // reallocate column data sizes
+        for (size_t i = 0; i < insert_table->col_count; i++) {
+            // sync and unmap before expand capacity
+            if (persist_column(insert_table, &insert_table->columns[i]) == -1) {
+                cs165_log(stdout, "Memory syncing and unmapping failed.\n");
+                send_message->status = EXECUTION_ERROR;
+                return;
+            }
+        }
+        insert_table->table_length_capacity = insert_table->table_length_capacity * 2;
+        for (size_t i = 0; i < insert_table->col_count; i++) {
+            // sync and unmap before expand capacity
+            if (map_column(insert_table, &insert_table->columns[i]) == -1) {
+                cs165_log(stdout, "Memory mapping failed.\n");
+                send_message->status = EXECUTION_ERROR;
+                return;
+            }
+        }
+    }
     int* insert_values = query->operator_fields.insert_operator.values;
     Column* columns = insert_table->columns;
     if (!columns) {
         send_message->status = OBJECT_NOT_FOUND;
+        return;
     }
 
     for (size_t i = 0; i < insert_table->col_count; i++) {
@@ -86,6 +114,99 @@ void execute_insert(DbOperator* query, message* send_message) {
     send_message->status = OK_DONE;
 }
 
+void execute_load(DbOperator* query, message* send_message) {
+    // load data from file
+    FILE* fp = fopen(query->operator_fields.load_operator.file_name, "r");
+    
+    // if file not exists
+    if (!fp) {
+        cs165_log(stdout, "Cannot open file.\n");
+        // cs165_log(stdout,query->operator_fields.load_operator.file_name );
+        send_message->status = FILE_NOT_FOUND;
+        return;
+    }
+    // count how many lines to load
+    int ch, number_lines = 0;
+    do {
+        ch = fgetc(fp);
+        if (ch == '\n') number_lines++;
+    }while (ch != EOF);
+    if(ch != '\n' && number_lines != 0) number_lines++;
+    fclose(fp);
+
+    // read header metadata
+    fp = fopen(query->operator_fields.load_operator.file_name, "r");
+    // buffer to store data from file
+    char buffer[DEFAULT_QUERY_BUFFER_SIZE];
+    // read file
+    fgets(buffer, DEFAULT_QUERY_BUFFER_SIZE, fp);
+    // header file stores the database metadata
+    char* metadata = strtok(buffer, ",");
+    char* db_name = strtok(metadata, ".");
+    char* table_name = strtok(NULL, ".");
+    // check data schema
+    if (!db_name || !table_name) {
+        cs165_log(stdout, "Incorrect data schema.\n");
+        send_message->status = INCORRECT_FORMAT;
+    }
+    // find the table for the load file
+    if (strcmp(db_name, current_db->name) != 0) {
+        cs165_log(stdout, "Cannot find database.\n");
+        send_message->status = OBJECT_NOT_FOUND;
+        return;
+    }
+    Table* current_table = NULL;
+    for (size_t i = 0; i < current_db->tables_size; i++) {
+        if (strcmp(current_db->tables[i].name, table_name) == 0) {
+            current_table = &(current_db->tables[i]);
+        }
+    }
+    if (!current_table) {
+        send_message->status = OBJECT_NOT_FOUND;
+        return;
+    }
+    // set table length capacity for current table
+    current_table->table_length_capacity = (number_lines - 1) * 2;
+    for (size_t i = 0; i < current_table->col_count; i++) {
+        if (map_column(current_table, &current_table->columns[i]) == -1) {
+            send_message->status = EXECUTION_ERROR;
+            return;
+        }
+    }
+    // TODO: match column pointers with column names in header
+    //
+    // load data from file and insert them into current database
+    size_t row = 0;
+    size_t column = 0;
+    // loop through each row in the file
+    while (fgets(buffer, DEFAULT_QUERY_BUFFER_SIZE, fp)) {
+        row++;
+        column = 0;
+        // if (row > current_table->table_length_capacity) {
+        //     // reallocate column data sizes
+        //     for (size_t i = 0; i < current_table->col_count; i++) {
+        //         // sync and unmap before expand capacity
+        //         if (persist_column(current_table, &current_table->columns[i]) == -1) {
+        //             cs165_log(stdout, "Memory syncing and unmapping failed.\n");
+        //         }
+        //         current_table->columns[i].data = realloc(current_table->columns[i].data, sizeof(int) * current_table->table_length);
+        //     }
+        //     current_table->table_length_capacity = current_table->table_length_capacity * 2;
+        // }
+        char* data =strtok(buffer, ",");
+        while (data) {
+            current_table->columns[column].data[row-1] = atoi(data);
+            data = strtok(NULL, ",");
+            column++;
+        }
+    }
+    fclose(fp);
+    send_message->status = OK_DONE;
+}
+
+void execute_select(DbOperator* query, message* send_message) {
+
+}
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
@@ -109,6 +230,10 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
         execute_create(query, send_message);
     } else if (query && query->type == INSERT) {
         execute_insert(query, send_message);
+    } else if (query && query->type == LOAD) {
+        execute_load(query, send_message);
+    } else if (query && query->type == SELECT) {
+        execute_select(query, send_message);
     }
     free(query);
     return "165";
