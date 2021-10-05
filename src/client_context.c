@@ -24,15 +24,20 @@ Column* lookup_column(Table* table, char *name) {
 	// void pattern for 'using' a variable to prevent compiler unused variable warning
 	for (size_t i = 0; i < table->col_count; i++) {
 		if (strcmp(table->columns[i].name, name) == 0) {
+			printf("Found column name: %s\n",table->columns[i].name);
 			return &(table->columns[i]);
 		}
 	}
 	return NULL;
 }
 
-Table* lookup_variables(char *name) {
+void* lookup_variables(char *name) {
 	// void pattern for 'using' a variable to prevent compiler unused variable warning
 	(void) name;
 
 	return NULL;
+}
+
+void add_context() {
+
 }

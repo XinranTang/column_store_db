@@ -44,7 +44,7 @@ SOFTWARE.
 
 typedef enum DataType {
      INT,
-     LONG,
+     LONG, // can be used to declare size_t type
      FLOAT
 } DataType;
 
@@ -245,19 +245,20 @@ typedef struct InsertOperator {
  * necessary fields for insertion
  */
 typedef struct LoadOperator {
-    char* file_name;
+    char file_name[MAX_COLUMN_PATH];
 } LoadOperator;
 
 typedef struct SelectOperator {
     Column* column;
     size_t column_length;
-    char* result_name;
+    char intermediate[MAX_SIZE_NAME];
     int low;
     int high;
 } SelectOperator;
 
 typedef struct FetchOperator {
     Column* column;
+    char intermediate[MAX_SIZE_NAME];
     char* positions;
 } FetchOperator;
 /*

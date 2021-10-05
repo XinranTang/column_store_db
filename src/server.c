@@ -176,18 +176,8 @@ void execute_load(DbOperator* query, message* send_message) {
     // loop through each row in the file
     while (fgets(buffer, DEFAULT_QUERY_BUFFER_SIZE, fp)) {
         row++;
+        current_table->table_length++;
         column = 0;
-        // if (row > current_table->table_length_capacity) {
-        //     // reallocate column data sizes
-        //     for (size_t i = 0; i < current_table->col_count; i++) {
-        //         // sync and unmap before expand capacity
-        //         if (persist_column(current_table, &current_table->columns[i]) == -1) {
-        //             cs165_log(stdout, "Memory syncing and unmapping failed.\n");
-        //         }
-        //         current_table->columns[i].data = realloc(current_table->columns[i].data, sizeof(int) * current_table->table_length);
-        //     }
-        //     current_table->table_length_capacity = current_table->table_length_capacity * 2;
-        // }
         char* data =strtok(buffer, ",");
         while (data) {
             current_table->columns[column].data[row-1] = atoi(data);
@@ -200,47 +190,93 @@ void execute_load(DbOperator* query, message* send_message) {
 }
 
 void execute_select(DbOperator* query, message* send_message) {
-    Column* column = &query->operator_fields.select_operator.column;
+
+    Column* column = query->operator_fields.select_operator.column;
     int low = query->operator_fields.select_operator.low;
-    int hight = query->operator_fields.select_operator.high;
-    int fd;
-	int result;
-	int select_data[query->operator_fields.select_operator.column_length];
-    // MAX_COLUMN_PATH value is also used here for context path
-    char context_path[MAX_COLUMN_PATH];
-    // create context path if not exist
-    struct stat st = {0};
-    if (stat(CONTEXT_PATH, &st) == -1) {
-        mkdir(CONTEXT_PATH, 0700);
+    int high = query->operator_fields.select_operator.high;
+    // map context file
+	size_t* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(size_t));
+    
+    int index = 0;
+
+    for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++) {
+        if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
     }
-    // TODO: TODAY
-	strcpy(context_path, CONTEXT_PATH);
-	strcat(context_path, column->name);
-    strcat(context_path, ".context");
-	fd = open(context_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
-	if (fd == -1) {
-		cs165_log(stdout, "Cannot create column page file %s\n", context_path);
-		return -1;
-	}
-	result = lseek(fd, query->operator_fields.select_operator.column_length * sizeof(int) - 1, SEEK_SET);
-	if (result == -1) {
-		cs165_log(stdout, "Cannot lseek in column page file %s\n", context_path);
-		return NULL;
-	}
-	result = write(fd, "", 1);
-	if (result == -1) {
-		cs165_log(stdout, "Cannot write zero-byte at the end of column page file %s\n", context_path);
-		return NULL;
-	}
-	column->data = mmap(0, query->operator_fields.select_operator.column_length * sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (column->data == MAP_FAILED) {
-		close(fd);
-		cs165_log(stdout, "Memory mapping failed column page file %s\n", context_path);
-		return NULL;
-	}
-	// TODO: further check: closing the file descriptor does not unmap the region
-	close(fd);
+
+    // insert selected positions to client context
+    ClientContext* client_context = query->context;
+    // check if client context is full
+    if (client_context->chandles_in_use == client_context->chandle_slots) {
+        cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+        client_context->chandle_slots *= 2;
+        client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+    }
+    // convert positions to generalized column
+    GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+    strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
+    // set column type to RESULT
+    chandle_table->generalized_column.column_type = RESULT;
+    // insert selected data into Result*
+    chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+    chandle_table->generalized_column.column_pointer.result->data_type = LONG;
+    chandle_table->generalized_column.column_pointer.result->num_tuples = index;
+    chandle_table->generalized_column.column_pointer.result->payload = select_data; 
+
+    send_message->status = OK_DONE;
 }
+
+void execute_fetch(DbOperator* query, message* send_message) {
+    Column* column = query->operator_fields.fetch_operator.column;
+    // char* intermediate = query->operator_fields.fetch_operator.intermediate; // Error!!!!!! strcpy for intermediate
+
+    size_t* positions;
+    size_t  positions_len;
+    // find specified positions vector in client context
+    ClientContext* client_context = query->context;
+    for (int i = 0; i < client_context->chandles_in_use; i++) {
+        if (strcmp(client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions) == 0) {
+            positions = client_context->chandle_table[i].generalized_column.column_pointer.result->payload;
+            positions_len = client_context->chandle_table[i].generalized_column.column_pointer.result->num_tuples;
+        }
+    }
+    // return if variable not found
+    if (!positions) {
+        cs165_log(stdout, "Variable not found in variable pool.");
+        send_message->status = EXECUTION_ERROR;
+        return;
+    }
+
+    // allocate memory for context file
+	int* fetch_data = malloc(positions_len * sizeof(int));
+    // fetch data
+    for (size_t i = 0; i < positions_len; i++) {
+        fetch_data[i] = column->data[positions[i]];
+    }
+
+    // check if client context is full
+    if (client_context->chandles_in_use == client_context->chandle_slots) {
+        cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+        client_context->chandle_slots *= 2;
+        client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+    }
+    // convert positions to generalized column
+    GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+    strcpy(chandle_table->name, query->operator_fields.fetch_operator.intermediate);
+    // set column type to RESULT
+    chandle_table->generalized_column.column_type = RESULT;
+    // insert fetch data into Result*
+    chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+    chandle_table->generalized_column.column_pointer.result->data_type = INT;
+    chandle_table->generalized_column.column_pointer.result->num_tuples = positions_len;
+    chandle_table->generalized_column.column_pointer.result->payload = fetch_data; 
+
+    send_message->status = OK_DONE;
+}
+
+void execute_aggregate(DbOperator* query, message* send_message) {
+
+}
+
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
@@ -264,10 +300,15 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
         execute_create(query, send_message);
     } else if (query && query->type == INSERT) {
         execute_insert(query, send_message);
+        free(query->operator_fields.insert_operator.values);
     } else if (query && query->type == LOAD) {
         execute_load(query, send_message);
     } else if (query && query->type == SELECT) {
         execute_select(query, send_message);
+    } else if (query && query->type == FETCH) {
+        execute_fetch(query, send_message);
+    } else if (query && query->type == AGGREGATE) {
+        execute_aggregate(query, send_message);
     }
     free(query);
     return "165";
@@ -290,6 +331,13 @@ void handle_client(int client_socket) {
 
     // create the client context here
     ClientContext* client_context = NULL;
+    client_context = malloc(sizeof(ClientContext));
+    // TODO: change for multiple clients later
+    client_context->chandle_slots = HANDLE_MAX_SIZE;
+    // TODO: change for multiple clients later
+    client_context->chandles_in_use = 0;
+    // TODO: change allocated size for chandle_table for multiple user later
+    client_context->chandle_table = malloc(HANDLE_MAX_SIZE * sizeof(GeneralizedColumnHandle));
 
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
@@ -343,6 +391,22 @@ void handle_client(int client_socket) {
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
+    // free client context
+    for (int i = 0; i < client_context->chandles_in_use; i++) {
+        // TODO: check whether to free result or column
+        if (client_context->chandle_table[i].generalized_column.column_type == RESULT) {
+            free(client_context->chandle_table[i].generalized_column.column_pointer.result->payload);
+            free(client_context->chandle_table[i].generalized_column.column_pointer.result);
+        }
+        // TODO: check how to free column
+        else if (client_context->chandle_table[i].generalized_column.column_type == COLUMN) {
+            free(client_context->chandle_table[i].generalized_column.column_pointer.column->data);
+            free(client_context->chandle_table[i].generalized_column.column_pointer.column);
+        }
+    }
+    free(client_context->chandle_table);
+    free(client_context);
+    // TODO: move the following executions to server side
     persist_database();
     free_database();
 }

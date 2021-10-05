@@ -34,11 +34,55 @@ int load_database() {
         for (size_t j = 0; j < current_table->col_count; j++) {
             Column* current_column = &(current_table->columns[j]);
             fread(current_column, sizeof(Column), 1, fp);
+            
+            map_column(current_table, current_column);
+            
         }
     }
     fclose(fp);
     return return_flag;
 }
+
+// void map_context(char* intermediate, int context_capacity, void* data) {
+//     int fd;
+// 	int result;
+
+//     // MAX_COLUMN_PATH value is also used here for context path
+//     char context_path[MAX_COLUMN_PATH];
+//     // create context path if not exist
+//     struct stat st = {0};
+//     // TODO: add context information for each client
+//     if (stat(CONTEXT_PATH, &st) == -1) {
+//         mkdir(CONTEXT_PATH, 0600);
+//     }
+//     // TODO: TODAY
+// 	strcpy(context_path, CONTEXT_PATH);
+// 	strcat(context_path, intermediate);
+//     strcat(context_path, ".context");
+// 	fd = open(context_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
+// 	if (fd == -1) {
+// 		cs165_log(stdout, "Cannot create context file %s\n", context_path);
+// 		return -1;
+// 	}
+// 	result = lseek(fd, context_capacity * sizeof(data) - 1, SEEK_SET);
+// 	if (result == -1) {
+// 		cs165_log(stdout, "Cannot lseek in context file %s\n", context_path);
+// 		return NULL;
+// 	}
+// 	result = write(fd, "", 1);
+// 	if (result == -1) {
+// 		cs165_log(stdout, "Cannot write zero-byte at the end of context file %s\n", context_path);
+// 		return NULL;
+// 	}
+// 	data = mmap(0, context_capacity * sizeof(data), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+// 	if (data == MAP_FAILED) {
+// 		close(fd);
+// 		cs165_log(stdout, "Memory mapping failed context file %s\n", context_path);
+// 		return NULL;
+// 	}
+// 	// TODO: further check: closing the file descriptor does not unmap the region
+// 	close(fd);
+// }
 
 int map_column(Table* table, Column* column) {
     // create column base path if not exist
@@ -62,7 +106,7 @@ int map_column(Table* table, Column* column) {
     // concat column path for column page
 	strcat(column_path, column->name);
     strcat(column_path, ".data");
-	fd = open(column_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
+	fd = open(column_path, O_RDWR | O_CREAT, (mode_t)0600);
 	if (fd == -1) {
 		cs165_log(stdout, "Cannot create column page file %s\n", column_path);
 		return -1;
@@ -138,6 +182,18 @@ int persist_table(Table* current_table) {
     fclose(fp);
     return return_flag;
 }
+
+// int persist_context(size_t* intermediate_data, int context_capacity) {
+//     if (msync(intermediate_data, context_capacity * sizeof(int), MS_SYNC) == -1) {
+//         cs165_log(stdout, "Memory syncing the context file failed.\n");
+//         return -1;
+//     }
+//     if (munmap(intermediate_data, context_capacity * sizeof(int)) == -1) {
+//         cs165_log(stdout, "Unmapping the context file failed.\n");
+//         return -1;
+//     }
+//     return 0;
+// }
 
 int persist_column(Table* current_table, Column* current_column) {
     // unmap column file

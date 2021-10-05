@@ -9,7 +9,7 @@
 #include "utils.h"
 #include "common.h"
 
-#define DB_MAX_TABLE_CAPACITY 1
+#define DB_MAX_TABLE_CAPACITY 10
 #define TABLE_INIT_LENGTH_CAPACITY 10
 // In this class, there will always be only one active database at a time
 Db *current_db;

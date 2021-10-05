@@ -7,6 +7,6 @@ Table* lookup_table(char *name);
 
 Column* lookup_column(Table* table, char *name);
 
-Table* lookup_variables(char *name);
+void* lookup_variables(char *name);
 
 #endif
