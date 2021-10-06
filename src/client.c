@@ -135,7 +135,7 @@ int main(void)
             }
             else {
                 if (len < 0) {
-                    log_err("Failed to receive message.");
+                    log_err("Failed to receive message.\n");
                 }
                 else {
 		            log_info("-- Server closed connection\n");

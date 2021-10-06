@@ -12,7 +12,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <limits.h>
 #include "cs165_api.h"
 #include "parse.h"
 #include "utils.h"
@@ -35,7 +34,7 @@ char* next_token(char** tokenizer, message_status* status) {
 
 char* sep_token(char** tokenizer, char* s, message_status* status) {
     char* token = strsep(tokenizer, s);
-    if (token == NULL) {
+    if (token ==  NULL) {
         *status= INCORRECT_FORMAT;
     }
     return token;
@@ -373,7 +372,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
         dbo->operator_fields.select_operator.column_length = select_table->table_length;
         // parse inputs until we reach the end. Turn each given string into an integer. 
         if ((token = strsep(command_index, ",")) != NULL) {
-            if (strcmp(token, "NULL") == 0) dbo->operator_fields.select_operator.low = INT_MIN;
+            if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.low = -__INT_MAX__-1;
             else dbo->operator_fields.select_operator.low = atoi(token);     
         } else {
             send_message->status = OBJECT_NOT_FOUND;
@@ -388,8 +387,10 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             }
             // replace final ')' with null-termination character.
             token[last_char] = '\0';
-            if (strcmp(token, "NULL") == 0) dbo->operator_fields.select_operator.high = INT_MAX;
+
+            if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.high = __INT_MAX__;
             else dbo->operator_fields.select_operator.high = atoi(token) - 1;   
+            printf("Just for check %s %d %d\n",token,  dbo->operator_fields.select_operator.low, dbo->operator_fields.select_operator.high);
         } else {
             send_message->status = OBJECT_NOT_FOUND;
             free(dbo);
@@ -402,69 +403,92 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
     }
 }
 
-DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateType aggregate_type, message* send_message) {
-    // char* token = NULL;
-    // // check for leading '('
-    // if (strncmp(query_command, "(", 1) == 0) {
-    //     query_command++;
-    //     char** command_index = &query_command;
-    //     // parse table input
-    //     char* name = next_token(command_index, &send_message->status);
-    //     if (send_message->status == INCORRECT_FORMAT) {
-    //         return NULL;
-    //     }
-    //     char* db_name = strtok(name, ".");
-    //     char* table_name = strtok(NULL, ".");
-    //     char* column_name = strtok(NULL, ".");
-    //     if (strcmp(db_name, current_db->name) != 0) {
-    //         send_message->status = OBJECT_NOT_FOUND;
-    //     }
-
-    //     // lookup the table and make sure it exists. 
-    //     Table* select_table = lookup_table(table_name);
-    //     if (select_table == NULL) {
-    //         send_message->status = OBJECT_NOT_FOUND;
-    //         return NULL;
-    //     }
-
-    //     Column* select_column = lookup_column(select_table, column_name);
-        
-    //     // make insert operator. 
-    //     DbOperator* dbo = malloc(sizeof(DbOperator));
-    //     dbo->type = SELECT;
-    //     strcpy(dbo->operator_fields.select_operator.intermediate, intermediate);
-    //     dbo->operator_fields.select_operator.column = select_column;
-    //     dbo->operator_fields.select_operator.column_length = select_table->table_length;
-    //     // parse inputs until we reach the end. Turn each given string into an integer. 
-    //     if ((token = strsep(command_index, ",")) != NULL) {
-    //         dbo->operator_fields.select_operator.low = atoi(token);   
-    //     } else {
-    //         send_message->status = OBJECT_NOT_FOUND;
-    //         free(dbo);
-    //         return NULL;
-    //     }
-    //     if ((token = strsep(command_index, ",")) != NULL) {
-    //         int last_char = strlen(token) - 1;
-    //         if (last_char < 0 || token[last_char] != ')') {
-    //             free(dbo);
-    //             return NULL;
-    //         }
-    //         // replace final ')' with null-termination character.
-    //         token[last_char] = '\0';
-    //         if (strcmp(token, "NULL") == 0) dbo->operator_fields.select_operator.high = __INT_MAX__;
-    //         else dbo->operator_fields.select_operator.high = atoi(token) - 1;   
-    //     } else {
-    //         send_message->status = OBJECT_NOT_FOUND;
-    //         free(dbo);
-    //         return NULL;
-    //     }
-    //     return dbo;
-    // } else {
-    //     send_message->status = UNKNOWN_COMMAND;
-    //     return NULL;
-    // }
+DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateType aggregate_type, message* send_message, ClientContext* client_context) {
+    char* token = NULL;
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        query_command = trim_parenthesis(query_command);
+        char** command_index = &query_command;
+        size_t intermediate_number = 1;
+        for (size_t i = 0; query_command[i]; i++) {
+            if (query_command[i] == ',') intermediate_number++;
+        }
+        if (intermediate_number == 1) {
+            // SUM, AVG, MAX, MIN
+            char* raw_intermediate = next_token(&query_command, send_message);
+            if (send_message->status == INCORRECT_FORMAT) {
+                return NULL;
+            }
+            GeneralizedColumn* generalized_column = lookup_variables(raw_intermediate, client_context);
+            if (!generalized_column) {
+                send_message->status = INCORRECT_FORMAT;
+                return NULL;
+            }
+            DbOperator* dbo = malloc(sizeof(DbOperator));
+            dbo->type = AGGREGATE;
+            strcpy(dbo->operator_fields.aggregate_operator.intermediate, intermediate);
+            dbo->operator_fields.aggregate_operator.aggregate_type = aggregate_type;
+            dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
+            dbo->operator_fields.aggregate_operator.gc1 = generalized_column;
+            return dbo;
+        } else if (intermediate_number == 2) {
+            // ADD, SUB, MAX(with position), MIN(with position)
+            char* raw_intermediate1 = next_token(&query_command, send_message);
+            char* raw_intermediate2 = next_token(&query_command, send_message);
+            printf("Raw intermediates %s  %s", raw_intermediate1, raw_intermediate2);
+            GeneralizedColumn* generalized_column1 = lookup_variables(raw_intermediate1, client_context);
+            if (!generalized_column1) {
+                send_message->status = INCORRECT_FORMAT;
+                return NULL;
+            }
+            GeneralizedColumn* generalized_column2 = lookup_variables(raw_intermediate2, client_context);
+            if (!generalized_column2) {
+                send_message->status = INCORRECT_FORMAT;
+                return NULL;
+            }
+            DbOperator* dbo = malloc(sizeof(DbOperator));
+            dbo->type = AGGREGATE;
+            strcpy(dbo->operator_fields.aggregate_operator.intermediate, intermediate);
+            dbo->operator_fields.aggregate_operator.aggregate_type = aggregate_type;
+            dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
+            dbo->operator_fields.aggregate_operator.gc1 = generalized_column1;
+            dbo->operator_fields.aggregate_operator.gc2 = generalized_column2;
+            return dbo;
+        } else {
+            send_message->status = INCORRECT_FORMAT;
+            return NULL;
+        }   
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
 }
 
+DbOperator* parse_print(char* query_command, message* send_message) {
+    char* token = NULL;
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) == 0) {
+        query_command++;
+        char** command_index = &query_command;
+        // parse table input
+        char* name = next_token(command_index, &send_message->status);
+        if (send_message->status == INCORRECT_FORMAT) {
+            return NULL;
+        }
+        char* intermediate = strtok(name, ")");
+        
+        // make print operator. 
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = PRINT;
+        strcpy(dbo->operator_fields.print_operator.intermediate,intermediate);
+        // printf("Prinet: intermediate name is %s\n", dbo->operator_fields.print_operator.intermediate);
+        return dbo;
+    } else {
+        send_message->status = UNKNOWN_COMMAND;
+        return NULL;
+    }
+}
 /**
  * parse_command takes as input the send_message from the client and then
  * parses it into the appropriate query. Stores into send_message the
@@ -523,34 +547,36 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         query_command += 4;
         dbo = parse_load(query_command, send_message);
     // TODO: add other queries
-
     } else if (strncmp(query_command, "fetch", 5) == 0) {
-            query_command += 5;
-                    cs165_log(stdout, "%s, %s\n", handle, query_command);
-            dbo = parse_fetch(handle, query_command, send_message);
+        query_command += 5;
+        cs165_log(stdout, "%s, %s\n", handle, query_command);
+        dbo = parse_fetch(handle, query_command, send_message);
             // TODO: bug here !
     } else if (strncmp(query_command, "select", 6) == 0) {
-            query_command += 6;
-                    cs165_log(stdout, "%s, %s\n", handle, query_command);
-            dbo = parse_select(handle, query_command, send_message);
+        query_command += 6;
+        cs165_log(stdout, "%s, %s\n", handle, query_command);
+        dbo = parse_select(handle, query_command, send_message);
     } else if (strncmp(query_command, "avg", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, AVG, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, AVG, send_message, context);
     } else if (strncmp(query_command, "sum", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, SUM, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, SUM, send_message, context);
     } else if (strncmp(query_command, "add", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, ADD, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, ADD, send_message, context);
     } else if (strncmp(query_command, "sub", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, SUB, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, SUB, send_message, context);
     } else if (strncmp(query_command, "min", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, MIN, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, MIN, send_message, context);
     } else if (strncmp(query_command, "max", 3) == 0) {
-            query_command += 3;
-            dbo = parse_aggregate(handle, query_command, MAX, send_message);
+        query_command += 3;
+        dbo = parse_aggregate(handle, query_command, MAX, send_message, context);
+    } else if (strncmp(query_command, "print", 5) == 0) {
+        query_command += 5;
+        dbo = parse_print(query_command, send_message);
     }
     
     if (dbo == NULL) {

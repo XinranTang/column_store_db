@@ -31,13 +31,51 @@ Column* lookup_column(Table* table, char *name) {
 	return NULL;
 }
 
-void* lookup_variables(char *name) {
-	// void pattern for 'using' a variable to prevent compiler unused variable warning
-	(void) name;
-
-	return NULL;
+GeneralizedColumn* lookup_variables(char *name, ClientContext* client_context) {
+	GeneralizedColumn* generalized_column;
+	if (strchr(name, '.')) {
+        // TODO: check if this malloc has been freed
+        generalized_column = malloc(sizeof(GeneralizedColumn));
+        // fully qualified column name
+        char* db_name = strtok(name, ".");
+        char* table_name = strtok(NULL, ".");
+        char* column_name = strtok(NULL, ".");
+        if (strcmp(db_name, current_db->name) != 0) {
+            free(generalized_column);
+            return NULL;
+        }
+        generalized_column->column_type = COLUMN;
+        generalized_column->column_pointer.column = lookup_column(lookup_table(table_name), column_name);
+		if (!generalized_column->column_pointer.column) {
+			free(generalized_column);
+			return NULL;
+		}
+    } else {
+        // find specified positions vector in client context
+        // TODO: extract find_context function later
+        for (int i = 0; i < client_context->chandles_in_use; i++) {
+            if (strcmp(client_context->chandle_table[i].name, name) == 0) {
+                generalized_column = &client_context->chandle_table[i].generalized_column;
+                break;
+            }
+        }
+    }
+	return generalized_column;
 }
 
-void add_context() {
-
+void add_context(Result* result, ClientContext* client_context, char* name) {
+// check if client context is full
+    if (client_context->chandles_in_use == client_context->chandle_slots) {
+        cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+        client_context->chandle_slots *= 2;
+        client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+    }
+    // convert positions to generalized column
+    GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+    strcpy(chandle_table->name, name);
+    // convert positions to generalized column
+    // set column type to RESULT
+    chandle_table->generalized_column.column_type = RESULT;
+    // insert fetch data into Result*
+    chandle_table->generalized_column.column_pointer.result = result;
 }

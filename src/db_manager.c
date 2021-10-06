@@ -88,7 +88,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	// Assign values to column attributes
 	strcpy(column->name, name);
 	column->sorted = sorted;
-
+	column->length = table->table_length;
 	// set return status code and message
 	ret_status->code = OK;
 	return NULL;

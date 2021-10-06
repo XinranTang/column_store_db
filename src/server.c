@@ -108,8 +108,10 @@ void execute_insert(DbOperator* query, message* send_message) {
 
     for (size_t i = 0; i < insert_table->col_count; i++) {
         Column* current_column = &(insert_table->columns[i]);
-        current_column->data = realloc(current_column, insert_table->table_length * sizeof(int));
+        // current_column->data = realloc(current_column, insert_table->table_length * sizeof(int));
         current_column->data[insert_table->table_length-1] = insert_values[i];
+        // increase the length of current_column
+        current_column->length++;
     }
     send_message->status = OK_DONE;
 }
@@ -186,6 +188,10 @@ void execute_load(DbOperator* query, message* send_message) {
         }
     }
     fclose(fp);
+    // set length of column
+    for (size_t i = 0; i < current_table->col_count; i++) {
+        current_table->columns[i].length = current_table->table_length;
+    }
     send_message->status = OK_DONE;
 }
 
@@ -200,6 +206,7 @@ void execute_select(DbOperator* query, message* send_message) {
     int index = 0;
 
     for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++) {
+        printf("%d ", column->data[i]);
         if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
     }
 
@@ -221,7 +228,10 @@ void execute_select(DbOperator* query, message* send_message) {
     chandle_table->generalized_column.column_pointer.result->data_type = LONG;
     chandle_table->generalized_column.column_pointer.result->num_tuples = index;
     chandle_table->generalized_column.column_pointer.result->payload = select_data; 
-
+    printf("Index after select %d for low %d high %d \n", index, low, high);
+    for (size_t i = 0; i < index; i++) {
+        printf("-%ld-\n", select_data[i]);
+    }
     send_message->status = OK_DONE;
 }
 
@@ -232,11 +242,13 @@ void execute_fetch(DbOperator* query, message* send_message) {
     size_t* positions;
     size_t  positions_len;
     // find specified positions vector in client context
+    // TODO: extract find_context function later
     ClientContext* client_context = query->context;
     for (int i = 0; i < client_context->chandles_in_use; i++) {
         if (strcmp(client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions) == 0) {
             positions = client_context->chandle_table[i].generalized_column.column_pointer.result->payload;
             positions_len = client_context->chandle_table[i].generalized_column.column_pointer.result->num_tuples;
+            break;
         }
     }
     // return if variable not found
@@ -269,12 +281,453 @@ void execute_fetch(DbOperator* query, message* send_message) {
     chandle_table->generalized_column.column_pointer.result->data_type = INT;
     chandle_table->generalized_column.column_pointer.result->num_tuples = positions_len;
     chandle_table->generalized_column.column_pointer.result->payload = fetch_data; 
-
+    for (size_t i = 0; i < chandle_table->generalized_column.column_pointer.result->num_tuples; i++) {
+        printf("~%d~\n", fetch_data[i]);
+    }
     send_message->status = OK_DONE;
 }
 
 void execute_aggregate(DbOperator* query, message* send_message) {
+    ClientContext* client_context = query->context;
+    AggregateType agg_type = query->type;
+    Result* result = malloc(sizeof(Result));
 
+    if (agg_type == SUM || agg_type == AVG) {
+        GeneralizedColumn* gc1 = query->operator_fields.aggregate_operator.gc1;
+        if (gc1->column_type == RESULT) { // result
+            if (gc1->column_pointer.result->data_type == FLOAT) {
+                result->data_type = FLOAT;
+
+                float* result_data = malloc(1 * sizeof(float));
+                *result_data = 0.0;
+
+                float* payload = (float*)gc1->column_pointer.result->payload;
+                for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
+                    *result_data += payload[i];
+                }
+                if (agg_type == AVG) *result_data = *result_data / gc1->column_pointer.result->num_tuples;
+                result->payload = result_data;
+                result->num_tuples = 1;
+
+            } else if (gc1->column_pointer.result->data_type == INT) {
+
+                if (agg_type == AVG) {
+                    result->data_type = FLOAT;
+
+                    float* result_data = malloc(1 * sizeof(float));
+                    *result_data = 0.0;
+                    int* payload = (int*)gc1->column_pointer.result->payload;
+                    for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
+                        *result_data += payload[i];
+                    }
+                    *result_data = *result_data / gc1->column_pointer.result->num_tuples;
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                } else { // agg_type == SUM
+                    result->data_type = INT;
+                    
+                    int* result_data = malloc(1 * sizeof(int));
+                    *result_data = 0;
+
+                    int* payload = (int*)gc1->column_pointer.result->payload;
+                    for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
+                        *result_data += payload[i];
+                    }
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                }
+
+            } else { // LONG
+                result->data_type = LONG;
+
+                if (agg_type == AVG) {
+                    result->data_type = FLOAT;
+
+                    float* result_data = malloc(1 * sizeof(float));
+                    *result_data = 0.0;
+                    long* payload = (long*)gc1->column_pointer.result->payload;
+                    for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
+                        *result_data += payload[i];
+                    }
+                    *result_data = *result_data / gc1->column_pointer.result->num_tuples;
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                } else { // agg_type == SUM
+                    result->data_type = LONG;
+                    
+                    long* result_data = malloc(1 * sizeof(long));
+                    *result_data = 0;
+                    long* payload = (long*)gc1->column_pointer.result->payload;
+                    for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
+                        *result_data += payload[i];
+                    }
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                }
+
+            }
+        } else { // column
+            if (agg_type == AVG) {
+                result->data_type = FLOAT;
+
+                float* result_data = malloc(1 * sizeof(float));
+                *result_data = 0.0;
+                for (size_t i = 0; i < gc1->column_pointer.column->length; i++) {
+                    *result_data += gc1->column_pointer.column->data[i];
+                }
+                *result_data = *result_data / gc1->column_pointer.column->length;
+                result->payload = result_data;
+                result->num_tuples = 1;
+            } else { // agg_type == SUM
+                result->data_type = INT;
+                
+                int* result_data = malloc(1 * sizeof(int));
+                *result_data = 0;
+                for (size_t i = 0; i < gc1->column_pointer.column->length; i++) {
+                    *result_data += gc1->column_pointer.column->data[i];
+                }
+                result->payload = result_data;
+                result->num_tuples = 1;
+            }
+        }
+    } else if (agg_type == ADD || agg_type == SUB) {
+        GeneralizedColumn* gc1 = query->operator_fields.aggregate_operator.gc1;
+        GeneralizedColumn* gc2 = query->operator_fields.aggregate_operator.gc2;
+        
+        if (gc1->column_type == RESULT) {
+            if (gc2->column_type == RESULT) { // RESULT RESULT
+                Result* data1 = gc1->column_pointer.result;
+                Result* data2 = gc2->column_pointer.result;
+                if (data1->num_tuples != data2->num_tuples) {
+                    send_message->status = INCORRECT_FORMAT;
+                    return;
+                }
+                if (data1->data_type == INT) { // int
+                    if (data2->data_type == INT) { // int int
+                        long* payload = malloc(data1->num_tuples * sizeof(long));
+                        int* payload1 = data1->payload;
+                        int* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = LONG;
+                        result->payload = payload;
+                    } else if (data2->data_type == LONG) { // int long
+                        long* payload = malloc(data1->num_tuples * sizeof(long));
+                        int* payload1 = data1->payload;
+                        long* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = LONG;
+                        result->payload = payload;
+                    } else { // int= float
+                        float* payload = malloc(data1->num_tuples * sizeof(float));
+                        int* payload1 = data1->payload;
+                        float* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = FLOAT;
+                        result->payload = payload;
+                    }
+                } else if (data1->data_type == LONG) { // long
+                    if (data2->data_type == INT) { // long int
+                        long* payload = malloc(data1->num_tuples * sizeof(long));
+                        long* payload1 = data1->payload;
+                        int* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = LONG;
+                        result->payload = payload;
+                    } else if (data2->data_type == LONG) { // long long
+                        long* payload = malloc(data1->num_tuples * sizeof(long));
+                        long* payload1 = data1->payload;
+                        long* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = LONG;
+                        result->payload = payload;
+                    } else { // int/long float
+                        float* payload = malloc(data1->num_tuples * sizeof(float));
+                        long* payload1 = data1->payload;
+                        float* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = FLOAT;
+                        result->payload = payload;
+                    }
+                } else { // float
+                    if (data2->data_type == INT) { // float int 
+                        float* payload = malloc(data1->num_tuples * sizeof(float));
+                        float* payload1 = data1->payload;
+                        int* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = FLOAT;
+                        result->payload = payload;
+                    } else if (data2->data_type == LONG) { // float long
+                        float* payload = malloc(data1->num_tuples * sizeof(float));
+                        float* payload1 = data1->payload;
+                        long* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = FLOAT;
+                        result->payload = payload;
+                    } else { // float float
+                        float* payload = malloc(data1->num_tuples * sizeof(float));
+                        float* payload1 = data1->payload;
+                        float* payload2 = data2->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                        }
+                        result->num_tuples = data1->num_tuples;
+                        result->data_type = FLOAT;
+                        result->payload = payload;
+                    }
+                }
+            } else { // RESULT COLUMN
+                Result* data1 = gc1->column_pointer.result;
+                Column* data2 = gc2->column_pointer.column;
+                if (data1->num_tuples != data2->length) {
+                    send_message->status = INCORRECT_FORMAT;
+                    return;
+                }
+                if (data1->data_type == INT) { // int int
+                    long* payload = malloc(data1->num_tuples * sizeof(long));
+                    int* payload1 = data1->payload;
+                    int* payload2 = data2->data;
+                    for (size_t i = 0; i < data1->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data1->num_tuples;
+                    result->data_type = LONG;
+                    result->payload = payload;
+                } else if (data1->data_type == LONG) { // long int
+                    long* payload = malloc(data1->num_tuples * sizeof(long));
+                    long* payload1 = data1->payload;
+                    int* payload2 = data2->data;
+                    for (size_t i = 0; i < data1->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data1->num_tuples;
+                    result->data_type = LONG;
+                    result->payload = payload;
+                } else { // float int
+                    float* payload = malloc(data1->num_tuples * sizeof(float));
+                    float* payload1 = data1->payload;
+                    int* payload2 = data2->data;
+                    for (size_t i = 0; i < data1->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data1->num_tuples;
+                    result->data_type = FLOAT;
+                    result->payload = payload;
+                }
+            }
+        } else { // COLUMN RESULT
+            if (gc2->column_type == RESULT) {
+                Column* data1 = gc1->column_pointer.column;
+                Result* data2 = gc2->column_pointer.result;
+                if (data1->length != data2->num_tuples) {
+                    send_message->status = INCORRECT_FORMAT;
+                    return;
+                }
+                if (data2->data_type == INT) { // int int
+                    long* payload = malloc(data2->num_tuples * sizeof(long));
+                    int* payload1 = data1->data;
+                    int* payload2 = data2->payload;
+                    for (size_t i = 0; i < data2->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data2->num_tuples;
+                    result->data_type = LONG;
+                    result->payload = payload;
+                } else if (data2->data_type == LONG) { // int long
+                    long* payload = malloc(data2->num_tuples * sizeof(long));
+                    int* payload1 = data1->data;
+                    long* payload2 = data2->payload;
+                    for (size_t i = 0; i < data2->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data2->num_tuples;
+                    result->data_type = LONG;
+                    result->payload = payload;
+                } else { // int float
+                    float* payload = malloc(data2->num_tuples * sizeof(float));
+                    int* payload1 = data1->data;
+                    float* payload2 = data2->payload;
+                    for (size_t i = 0; i < data2->num_tuples; i++) {
+                        payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                    }
+                    result->num_tuples = data2->num_tuples;
+                    result->data_type = FLOAT;
+                    result->payload = payload;
+                }
+            } else { // COLUMN COLUMN
+                Column* data1 = gc1->column_pointer.column;
+                Column* data2 = gc2->column_pointer.column;
+                if (data1->length != data2->length) {
+                    send_message->status = INCORRECT_FORMAT;
+                    return;
+                }
+                // int int
+                long* payload = malloc(data2->length * sizeof(long));
+                int* payload1 = data1->data;
+                int* payload2 = data2->data;
+                for (size_t i = 0; i < data2->length; i++) {
+                    payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                }
+                result->num_tuples = data2->length;
+                result->data_type = LONG;
+                result->payload = payload;
+            }
+        }
+    } else if (agg_type == MAX || agg_type == MIN) {
+        if (query->operator_fields.aggregate_operator.variable_number == 1) {
+            GeneralizedColumn* gc1 = query->operator_fields.aggregate_operator.gc1;
+            if (gc1->column_type == RESULT) {
+                Result* data1 = gc1->column_pointer.result;
+                if (data1->data_type == INT) {
+                    int* result_data = malloc(1 * sizeof(int));
+                    if (agg_type == MAX) {
+                        *result_data = - __INT_MAX__ - 1;
+                        int* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] > *result_data) *result_data = payload[i];
+                        }
+                    } else { // M_I_N
+                        *result_data = __INT_MAX__;
+                        int* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] < *result_data) *result_data = payload[i];
+                        }
+                    }
+                    result->data_type = INT;
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                } else if (data1->data_type == LONG) {
+                    long* result_data = malloc(1 * sizeof(long));
+                    if (agg_type == MAX) {
+                        *result_data = - __INT_MAX__ - 1;
+                        long* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] > *result_data) *result_data = payload[i];
+                        }
+                    } else { // M_I_N
+                        *result_data = __INT_MAX__;
+                        long* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] < *result_data) *result_data = payload[i];
+                        }
+                    }
+                    result->data_type = LONG;
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                } else { // float
+                    float* result_data = malloc(1 * sizeof(float));
+                    if (agg_type == MAX) {
+                        *result_data = - __INT_MAX__ - 1;
+                        float* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] > *result_data) *result_data = payload[i];
+                        }
+                    } else { // M_I_N
+                        *result_data = __INT_MAX__;
+                        float* payload = data1->payload;
+                        for (size_t i = 0; i < data1->num_tuples; i++) {
+                            if (payload[i] < *result_data) *result_data = payload[i];
+                        }
+                    }
+                    result->data_type = FLOAT;
+                    result->payload = result_data;
+                    result->num_tuples = 1;
+                }
+            } else { // COLUMN int
+                Column* data1 = gc1->column_pointer.column;
+                int* result_data = malloc(1 * sizeof(int));
+                if (agg_type == MAX) {
+                    *result_data = - __INT_MAX__ - 1;
+                    int* payload = data1->data;
+                    for (size_t i = 0; i < data1->length; i++) {
+                        if (payload[i] > *result_data) *result_data = payload[i];
+                    }
+                } else { // M_I_N
+                    *result_data = __INT_MAX__;
+                    int* payload = data1->data;
+                    for (size_t i = 0; i < data1->length; i++) {
+                        if (payload[i] < *result_data) *result_data = payload[i];
+                    }
+                }
+                result->data_type = INT;
+                result->payload = result_data;
+                result->num_tuples = 1;
+            }
+        } else { // 2 generalized columns
+            GeneralizedColumn* positions = query->operator_fields.aggregate_operator.gc1;
+            GeneralizedColumn* gc1 = query->operator_fields.aggregate_operator.gc2;
+
+        }
+    } else {
+        send_message->status = INCORRECT_FORMAT;
+        free(result);
+        return;
+    }
+    add_context(result, client_context, query->operator_fields.aggregate_operator.intermediate);
+}
+
+void execute_print(DbOperator* query, message* send_message) {
+    // find specified positions vector in client context
+    ClientContext* client_context = query->context;
+    void* print_data;
+    size_t print_len;
+    DataType data_type;
+    for (int i = 0; i < client_context->chandles_in_use; i++) {
+        // printf("Check %s %s \n", client_context->chandle_table[i].name, query->operator_fields.print_operator.intermediate);
+        if (strcmp(client_context->chandle_table[i].name, query->operator_fields.print_operator.intermediate) == 0) {
+            print_data = client_context->chandle_table[i].generalized_column.column_pointer.result->payload;
+            print_len = client_context->chandle_table[i].generalized_column.column_pointer.result->num_tuples;
+            data_type = client_context->chandle_table[i].generalized_column.column_type;
+            break;
+        }
+    }
+    printf("****%ld\n",print_len);
+
+    // Just print for checking on server side
+    // TODO: delete
+    if (data_type == INT) {
+        int* print_int = (int*) print_data;
+        for (size_t i = 0; i < print_len; i++) {
+            printf("//%d\n", print_int[i]);
+        }
+    } else if (data_type == LONG) {
+        size_t* print_long = (size_t*) print_data;
+        for (size_t i = 0; i < print_len; i++) {
+            printf("//%ld\n", print_long[i]);
+        }
+    } else if (data_type == FLOAT) {
+        float* print_float = (float*) print_data;
+        for (size_t i = 0; i < print_len; i++) {
+            printf("//%f\n", print_float[i]);
+         }
+    } else {
+        cs165_log(stdout, "Unsupported data type found.\n");
+        send_message->status = OBJECT_NOT_FOUND;
+    }
+    send_message->status = OK_DONE;
 }
 
 /** execute_DbOperator takes as input the DbOperator and executes the query.
@@ -292,6 +745,7 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
     //////////////////////////////////
     // there is a small memory leak here (when combined with other parts of your database.)
     // as practice with something like valgrind and to develop intuition on memory leaks, find and fix the memory leak. 
+
     if(!query)
     {
         return "165";
@@ -309,9 +763,10 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
         execute_fetch(query, send_message);
     } else if (query && query->type == AGGREGATE) {
         execute_aggregate(query, send_message);
+    } else if (query && query->type == PRINT) {
+        execute_print(query, send_message);
     }
-    free(query);
-    return "165";
+    return "";
 }
 
 /**

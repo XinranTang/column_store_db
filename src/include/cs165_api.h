@@ -54,6 +54,7 @@ struct Comparator;
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
     int* data;
+    size_t length;
     bool sorted;
     // You will implement column indexes later. 
     void* index;
@@ -200,6 +201,7 @@ typedef enum OperatorType {
     FETCH,
     SELECT,
     AGGREGATE,
+    PRINT,
 } OperatorType;
 
 
@@ -261,6 +263,19 @@ typedef struct FetchOperator {
     char intermediate[MAX_SIZE_NAME];
     char* positions;
 } FetchOperator;
+
+typedef struct PrintOperator {
+    char intermediate[MAX_SIZE_NAME];
+} PrintOperator;
+
+typedef struct AggregateOperator{
+    AggregateType aggregate_type;
+    char intermediate[MAX_SIZE_NAME];
+    int variable_number;
+    GeneralizedColumn* gc1;
+    GeneralizedColumn* gc2;
+} AggregateOperator;
+
 /*
  * union type holding the fields of any operator
  */
@@ -270,6 +285,8 @@ typedef union OperatorFields {
     LoadOperator load_operator;
     SelectOperator select_operator;
     FetchOperator fetch_operator;
+    PrintOperator print_operator;
+    AggregateOperator aggregate_operator;
 } OperatorFields;
 /*
  * DbOperator holds the following fields:
