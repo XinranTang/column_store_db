@@ -202,6 +202,7 @@ typedef enum OperatorType {
     SELECT,
     AGGREGATE,
     PRINT,
+    SHUTDOWN,
 } OperatorType;
 
 

@@ -429,6 +429,7 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             dbo->type = AGGREGATE;
             strcpy(dbo->operator_fields.aggregate_operator.intermediate, intermediate);
             dbo->operator_fields.aggregate_operator.aggregate_type = aggregate_type;
+                        printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
             dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
             dbo->operator_fields.aggregate_operator.gc1 = generalized_column;
             return dbo;
@@ -454,6 +455,7 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
             dbo->operator_fields.aggregate_operator.gc1 = generalized_column1;
             dbo->operator_fields.aggregate_operator.gc2 = generalized_column2;
+            printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
             return dbo;
         } else {
             send_message->status = INCORRECT_FORMAT;
@@ -483,11 +485,19 @@ DbOperator* parse_print(char* query_command, message* send_message) {
         dbo->type = PRINT;
         strcpy(dbo->operator_fields.print_operator.intermediate,intermediate);
         // printf("Prinet: intermediate name is %s\n", dbo->operator_fields.print_operator.intermediate);
+        send_message->status = OK_DONE;
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
         return NULL;
     }
+}
+
+DbOperator* parse_shutdown(message* send_message) {
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = SHUTDOWN;
+    send_message->status = OK_DONE;
+    return dbo;
 }
 /**
  * parse_command takes as input the send_message from the client and then
@@ -577,6 +587,8 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "print", 5) == 0) {
         query_command += 5;
         dbo = parse_print(query_command, send_message);
+    } else if (strncmp(query_command, "shutdown", 8) == 0) {
+        dbo = parse_shutdown(send_message);
     }
     
     if (dbo == NULL) {
