@@ -749,9 +749,7 @@ void execute_print(DbOperator* query, message* send_message) {
     send_message->status = OK_DONE;
 }
 
-void execute_shutdown() {
-        log_info("Connection closed at socket %d!\n", client_socket);
-    close(client_socket);
+void execute_shutdown(ClientContext* client_context) {
     // free client context
     for (int i = 0; i < client_context->chandles_in_use; i++) {
         // TODO: check whether to free result or column
@@ -770,6 +768,8 @@ void execute_shutdown() {
     // TODO: move the following executions to server side
     persist_database();
     free_database();
+    // TODO: send message to client side
+    exit(0);
 }
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -807,7 +807,7 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
     } else if (query && query->type == PRINT) {
         execute_print(query, send_message);
     } else if (query && query->type == SHUTDOWN) {
-        execute_shutdown();
+        execute_shutdown(query->context);
     }
     return "";
 }
