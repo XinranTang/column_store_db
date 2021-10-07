@@ -47,21 +47,20 @@ char* sep_token(char** tokenizer, char* s, message_status* status) {
  **/
 
 
-DbOperator* parse_create_col(char* create_arguments) {
-    message_status status = OK_DONE;
+DbOperator* parse_create_col(char* create_arguments, message* send_message) {
     char** create_arguments_index = &create_arguments;
-    char* column_name = next_token(create_arguments_index, &status);
-    char* table_and_db = next_token(create_arguments_index, &status);
+    char* column_name = next_token(create_arguments_index, &send_message->status);
+    char* table_and_db = next_token(create_arguments_index, &send_message->status);
     bool sorted = false; // TODO: get sorted value from arguments
 
     // Get the table name free of quotation marks
     column_name = trim_quotes(column_name);
     // seperate db name and table name
-    char* db_name = sep_token(&table_and_db, ".", &status);
-    char* table_name = sep_token(&table_and_db, ".", &status);
+    char* db_name = sep_token(&table_and_db, ".", &send_message->status);
+    char* table_name = sep_token(&table_and_db, ".", &send_message->status);
     
         // not enough arguments
-    if (status == INCORRECT_FORMAT) {
+    if (send_message->status == INCORRECT_FORMAT) {
         return NULL;
     }
 
@@ -72,6 +71,7 @@ DbOperator* parse_create_col(char* create_arguments) {
     }
     // replace the ')' with a null terminating character. 
     table_name[last_char] = '\0';
+
     // check that the database argument is the current active database
     if (!current_db || strcmp(current_db->name, db_name) != 0) {
         cs165_log(stdout, "query unsupported. Bad db name\n");
@@ -79,13 +79,7 @@ DbOperator* parse_create_col(char* create_arguments) {
     }
     // // TODO: turn the string sorted into an boolean, and check that the input is valid.
     // bool sorted = atoi(sorted);
-    Table* current_table;
-    for (size_t i = 0; i < current_db->tables_size; i++) {
-        if (strcmp(current_db->tables[i].name, table_name) == 0) {
-            current_table = &(current_db->tables[i]);
-            break;
-        }
-    }
+    Table* current_table = lookup_table(table_name);
     if (!current_table) {
         cs165_log(stdout, "query unsupported. Bad table name\n");
         return NULL;
@@ -99,6 +93,7 @@ DbOperator* parse_create_col(char* create_arguments) {
     dbo->operator_fields.create_operator.db = current_db;
     dbo->operator_fields.create_operator.table = current_table;
     dbo->operator_fields.create_operator.sorted = sorted;
+    send_message->status = OK_DONE;
     return dbo;
 }
 
@@ -108,15 +103,14 @@ DbOperator* parse_create_col(char* create_arguments) {
  **/
 
 
-DbOperator* parse_create_tbl(char* create_arguments) {
-    message_status status = OK_DONE;
+DbOperator* parse_create_tbl(char* create_arguments, message* send_message) {
     char** create_arguments_index = &create_arguments;
-    char* table_name = next_token(create_arguments_index, &status);
-    char* db_name = next_token(create_arguments_index, &status);
-    char* col_cnt = next_token(create_arguments_index, &status);
+    char* table_name = next_token(create_arguments_index, &send_message->status);
+    char* db_name = next_token(create_arguments_index, &send_message->status);
+    char* col_cnt = next_token(create_arguments_index, &send_message->status);
 
     // not enough arguments
-    if (status == INCORRECT_FORMAT) {
+    if (send_message->status == INCORRECT_FORMAT) {
         return NULL;
     }
     // Get the table name free of quotation marks
@@ -130,7 +124,7 @@ DbOperator* parse_create_tbl(char* create_arguments) {
     col_cnt[last_char] = '\0';
     // check that the database argument is the current active database
     if (!current_db || strcmp(current_db->name, db_name) != 0) {
-        cs165_log(stdout, "query unsupported. Bad db name\n");
+        cs165_log(stdout, "query unsupported. Bad db name: %s which is not compatible with current db: %s\n", db_name, current_db->name);
         return NULL; //QUERY_UNSUPPORTED
     }
     // turn the string column count into an integer, and check that the input is valid.
@@ -145,6 +139,8 @@ DbOperator* parse_create_tbl(char* create_arguments) {
     strcpy(dbo->operator_fields.create_operator.name, table_name);
     dbo->operator_fields.create_operator.db = current_db;
     dbo->operator_fields.create_operator.col_count = column_cnt;
+
+    send_message->status = OK_DONE;
     return dbo;
 }
 
@@ -154,9 +150,10 @@ DbOperator* parse_create_tbl(char* create_arguments) {
  **/
 
 
-DbOperator* parse_create_db(char* create_arguments) {
-    char *token;
-    token = strsep(&create_arguments, ",");
+DbOperator* parse_create_db(char* create_arguments, message* send_message) {
+    char** create_arguments_index = &create_arguments;
+    char* token = next_token(create_arguments_index, &send_message->status);
+    // token = sep_token(create_arguments_index, ",", &send_message->status);
     // not enough arguments if token is NULL
     if (token == NULL) {
         return NULL;
@@ -173,7 +170,7 @@ DbOperator* parse_create_db(char* create_arguments) {
         // replace final ')' with null-termination character.
         db_name[last_char] = '\0';
 
-        token = strsep(&create_arguments, ",");
+        token = sep_token(create_arguments_index, ",", &send_message->status);
         if (token != NULL) {
             return NULL;
         }
@@ -182,6 +179,8 @@ DbOperator* parse_create_db(char* create_arguments) {
         dbo->type = CREATE;
         dbo->operator_fields.create_operator.create_type = _DB;
         strcpy(dbo->operator_fields.create_operator.name, db_name);
+
+        send_message->status = OK_DONE;
         return dbo;
     }
 }
@@ -189,38 +188,38 @@ DbOperator* parse_create_db(char* create_arguments) {
 /**
  * parse_create parses a create statement and then passes the necessary arguments off to the next function
  **/
-DbOperator* parse_create(char* create_arguments) {
-    message_status mes_status;
+DbOperator* parse_create(char* create_arguments, message* send_message) {
     DbOperator* dbo = NULL;
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input. 
     tokenizer_copy = to_free = malloc((strlen(create_arguments)+1) * sizeof(char));
-    char *token;
+    char* token;
     strcpy(tokenizer_copy, create_arguments);
     // check for leading parenthesis after create. 
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to just past first ","
-        token = next_token(&tokenizer_copy, &mes_status);
-        if (mes_status == INCORRECT_FORMAT) {
+        token = next_token(&tokenizer_copy, &send_message->status);
+        if (send_message->status == INCORRECT_FORMAT) {
             free(to_free);
             return NULL;
         } else {
             // pass off to next parse function. 
             if (strcmp(token, "db") == 0) {
-                dbo = parse_create_db(tokenizer_copy);
+                dbo = parse_create_db(tokenizer_copy, send_message);
             } else if (strcmp(token, "tbl") == 0) {
-                dbo = parse_create_tbl(tokenizer_copy);
+                dbo = parse_create_tbl(tokenizer_copy, send_message);
             } else if (strcmp(token, "col") == 0) {
-                dbo = parse_create_col(tokenizer_copy);
+                dbo = parse_create_col(tokenizer_copy, send_message);
             } else {
-                mes_status = UNKNOWN_COMMAND;
+                send_message->status = UNKNOWN_COMMAND;
             }
         }
     } else {
-        mes_status = UNKNOWN_COMMAND;
+        send_message->status = UNKNOWN_COMMAND;
     }
     free(to_free);
+    send_message->status = OK_DONE;
     return dbo;
 }
 
@@ -243,8 +242,8 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         }
         // lookup the table and make sure it exists. 
         // TODO: implement lookup table
-        table_name = strtok(table_name, ".");
-        table_name = strtok(NULL, ".");
+        table_name = sep_token(&table_name, ".", &send_message->status);
+        table_name = sep_token(&table_name, ".", &send_message->status);
         Table* insert_table = lookup_table(table_name);
         if (insert_table == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
@@ -256,7 +255,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         dbo->operator_fields.insert_operator.table = insert_table;
         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
         // parse inputs until we reach the end. Turn each given string into an integer. 
-        while ((token = strsep(command_index, ",")) != NULL) {
+        while ((token = sep_token(command_index, ",", &send_message->status)) != NULL) {
             int insert_val = atoi(token);
             dbo->operator_fields.insert_operator.values[columns_inserted] = insert_val;
             columns_inserted++;
@@ -282,9 +281,8 @@ DbOperator* parse_load(char* query_command, message* send_message) {
     DbOperator* dbo = malloc(sizeof(DbOperator));
     dbo->type = LOAD;
     strcpy(dbo->operator_fields.load_operator.file_name, query_command);
-
+    send_message->status = OK_DONE;
     return dbo;
-
 }
 
 DbOperator* parse_fetch(char* intermediate, char* query_command, message* send_message) {
@@ -298,9 +296,9 @@ DbOperator* parse_fetch(char* intermediate, char* query_command, message* send_m
         if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         }
-        char* db_name = strtok(name, ".");
-        char* table_name = strtok(NULL, ".");
-        char* column_name = strtok(NULL, ".");
+        char* db_name = sep_token(&name, ".", &send_message->status);
+        char* table_name = sep_token(&name, ".", &send_message->status);
+        char* column_name = sep_token(&name, ".", &send_message->status);
         if (strcmp(db_name, current_db->name) != 0) {
             send_message->status = OBJECT_NOT_FOUND;
         }
@@ -320,7 +318,7 @@ DbOperator* parse_fetch(char* intermediate, char* query_command, message* send_m
         strcpy(dbo->operator_fields.fetch_operator.intermediate,intermediate);
         dbo->operator_fields.fetch_operator.column = fetch_column;
         // parse inputs until we reach the end. Turn each given string into an integer. 
-        if ((token = strsep(command_index, ",")) != NULL) {
+        if ((token = sep_token(command_index, ",", &send_message->status)) != NULL) {
             int last_char = strlen(token) - 1;
             if (last_char < 0 || token[last_char] != ')') {
                 free(dbo);
@@ -361,9 +359,9 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
                 free(to_free);
                 return NULL;
             }
-            char* db_name = strtok(name, ".");
-            char* table_name = strtok(NULL, ".");
-            char* column_name = strtok(NULL, ".");
+            char* db_name = sep_token(&name, ".", &send_message->status);
+            char* table_name = sep_token(&name, ".", &send_message->status);
+            char* column_name = sep_token(&name, ".", &send_message->status);
             // cs165_log(stdout, "%s, %s, %s, %s\n", db_name, table_name, column_name,current_db->name);
             if (strcmp(db_name, current_db->name) != 0) {
                 send_message->status = OBJECT_NOT_FOUND;
@@ -386,7 +384,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             dbo->operator_fields.select_operator.column = select_column;
             dbo->operator_fields.select_operator.column_length = select_table->table_length;
             // parse inputs until we reach the end. Turn each given string into an integer. 
-            if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+            if ((token = next_token(&tokenizer_copy, &send_message->status)) != NULL) {
                 if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.low = -__INT_MAX__-1;
                 else dbo->operator_fields.select_operator.low = atoi(token);     
             } else {
@@ -395,7 +393,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
                 free(to_free);
                 return NULL;
             }
-            if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+            if ((token = next_token(&tokenizer_copy, &send_message->status)) != NULL) {
                 int last_char = strlen(token) - 1;
                 if (last_char < 0 || token[last_char] != ')') {
                     free(dbo);
@@ -437,7 +435,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             strcpy(dbo->operator_fields.select_operator.value_vector, name2);
 
             // parse inputs until we reach the end. Turn each given string into an integer. 
-            if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+            if ((token = next_token(&tokenizer_copy, &send_message->status)) != NULL) {
                 //printf("token%s\n", token);
                 if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.low = -__INT_MAX__-1;
                 else dbo->operator_fields.select_operator.low = atoi(token);     
@@ -447,7 +445,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
                 free(to_free);
                 return NULL;
             }
-            if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+            if ((token = next_token(&tokenizer_copy, &send_message->status)) != NULL) {
                                 //printf("token%s\n", token);
                 int last_char = strlen(token) - 1;
                 if (last_char < 0 || token[last_char] != ')') {
@@ -504,9 +502,9 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             char* table_name = NULL;
             char* column_name = NULL;
             if (strchr(raw_intermediate, '.') ) {
-                db_name = strtok(raw_intermediate, ".");
-                table_name = strtok(NULL, ".");
-                column_name = strtok(NULL, ".");
+                db_name = sep_token(&raw_intermediate, ".", &send_message->status);
+                table_name = sep_token(&raw_intermediate, ".", &send_message->status);
+                column_name = sep_token(&raw_intermediate, ".", &send_message->status);
                 raw_intermediate = column_name;
             }
             GeneralizedColumn* generalized_column = lookup_variables(db_name, table_name, column_name, raw_intermediate, client_context);
@@ -533,18 +531,18 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             char* table_name1 = NULL;
             char* column_name1 = NULL;
             if (strchr(raw_intermediate1, '.') ) {
-                db_name1 = strtok(raw_intermediate1, ".");
-                table_name1 = strtok(NULL, ".");
-                column_name1 = strtok(NULL, ".");
+                db_name1 = sep_token(&raw_intermediate1, ".", &send_message->status);
+                table_name1 = sep_token(&raw_intermediate1, ".", &send_message->status);
+                column_name1 = sep_token(&raw_intermediate1, ".", &send_message->status);
                 raw_intermediate1 = column_name1;
             }
             char* db_name2 = NULL;
             char* table_name2 = NULL;
             char* column_name2 = NULL;
             if (strchr(raw_intermediate2, '.') ) {
-                db_name2 = strtok(raw_intermediate2, ".");
-                table_name2 = strtok(NULL, ".");
-                column_name2 = strtok(NULL, ".");
+                db_name2 = sep_token(&raw_intermediate2, ".", &send_message->status);
+                table_name2 = sep_token(&raw_intermediate2, ".", &send_message->status);
+                column_name2 = sep_token(&raw_intermediate2, ".", &send_message->status);
                 raw_intermediate2 = column_name2;
             }
             GeneralizedColumn* generalized_column1 = lookup_variables(db_name1, table_name1, column_name1, raw_intermediate1, client_context);
@@ -582,7 +580,6 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
 }
 
 DbOperator* parse_print(char* query_command, message* send_message) {
-    char* token = NULL;
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input. 
     tokenizer_copy = to_free = malloc((strlen(query_command)+1) * sizeof(char));
@@ -606,7 +603,7 @@ DbOperator* parse_print(char* query_command, message* send_message) {
         char* name;
         size_t inter_index = 0;
 
-        while (name = next_token(command_index, &send_message->status)) {
+        while ((name = next_token(command_index, &send_message->status)) != NULL) {
             intermediates[inter_index++] = name;
         }
         // for (size_t i = 0;i<intermediate_number;i++){
@@ -678,7 +675,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     // check what command is given. 
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;
-        dbo = parse_create(query_command);
+        dbo = parse_create(query_command, send_message);
         if(dbo == NULL){
             send_message->status = INCORRECT_FORMAT;
         }

@@ -46,47 +46,6 @@ int load_database() {
     return return_flag;
 }
 
-// void map_context(char* intermediate, int context_capacity, void* data) {
-//     int fd;
-// 	int result;
-
-//     // MAX_COLUMN_PATH value is also used here for context path
-//     char context_path[MAX_COLUMN_PATH];
-//     // create context path if not exist
-//     struct stat st = {0};
-//     // TODO: add context information for each client
-//     if (stat(CONTEXT_PATH, &st) == -1) {
-//         mkdir(CONTEXT_PATH, 0600);
-//     }
-//     // TODO: TODAY
-// 	strcpy(context_path, CONTEXT_PATH);
-// 	strcat(context_path, intermediate);
-//     strcat(context_path, ".context");
-// 	fd = open(context_path, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0600);
-// 	if (fd == -1) {
-// 		cs165_log(stdout, "Cannot create context file %s\n", context_path);
-// 		return -1;
-// 	}
-// 	result = lseek(fd, context_capacity * sizeof(data) - 1, SEEK_SET);
-// 	if (result == -1) {
-// 		cs165_log(stdout, "Cannot lseek in context file %s\n", context_path);
-// 		return NULL;
-// 	}
-// 	result = write(fd, "", 1);
-// 	if (result == -1) {
-// 		cs165_log(stdout, "Cannot write zero-byte at the end of context file %s\n", context_path);
-// 		return NULL;
-// 	}
-// 	data = mmap(0, context_capacity * sizeof(data), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-// 	if (data == MAP_FAILED) {
-// 		close(fd);
-// 		cs165_log(stdout, "Memory mapping failed context file %s\n", context_path);
-// 		return NULL;
-// 	}
-// 	// TODO: further check: closing the file descriptor does not unmap the region
-// 	close(fd);
-// }
-
 int map_column(Table* table, Column* column) {
     // create column base path if not exist
     struct stat st = {0};
@@ -101,8 +60,8 @@ int map_column(Table* table, Column* column) {
 	strcpy(column_path, COLUMN_PATH);
     strcat(column_path, table->name);
     strcat(column_path, PATH_SEP);
+    
     // create column path for table if not exist
-
     if (stat(column_path, &st) == -1) {
         mkdir(column_path, 0600);
     }

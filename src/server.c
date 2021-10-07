@@ -15,6 +15,7 @@
  * For more information on unix sockets, refer to:
  * http://beej.us/guide/bgipc/output/html/multipage/unixsock.html
  **/
+#include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -22,8 +23,6 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <string.h>
-
 #include "common.h"
 #include "parse.h"
 #include "persist.h"
@@ -817,7 +816,6 @@ void execute_print(DbOperator* query, message* send_message) {
     //printf("****%ld\n",print_len);
 
     // Just print for checking on server side
-    // TODO: delete
 
     send_message->status = OK_DONE;
 }
