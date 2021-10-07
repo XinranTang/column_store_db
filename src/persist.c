@@ -36,14 +36,12 @@ int load_database() {
             fread(current_column, sizeof(Column), 1, fp);
             
             map_column(current_table, current_column);
-            printf("Column length: %s, %ld\n",current_column->name, current_column->length);
+            //printf("Column length: %s, %ld\n",current_column->name, current_column->length);
         }
     }
-    printf("Loading database, sizeof table is %ld\n", current_db->tables_size);
-    for (size_t i = 0 ; i < current_db->tables_size; i++) {
-
-    
-    printf("Loading db, table name: %s\n",current_db->tables[i].name);}
+    //printf("Loading database, sizeof table is %ld\n", current_db->tables_size);
+    //for (size_t i = 0 ; i < current_db->tables_size; i++) {
+    //printf("Loading db, table name: %s\n",current_db->tables[i].name);}
     fclose(fp);
     return return_flag;
 }
@@ -161,7 +159,7 @@ int persist_database() {
         fwrite(current_table, sizeof(Table), 1, fp);
         for (size_t j = 0; j < current_table->col_count; j++) {
             Column* current_column = &(current_table->columns[j]);
-            printf("Persist column %s %ld", current_column->name, current_column->length);
+            //printf("Persist column %s %ld", current_column->name, current_column->length);
             fwrite(current_column, sizeof(Column), 1, fp);
         }
     }

@@ -24,7 +24,7 @@ Column* lookup_column(Table* table, char *name) {
 	// void pattern for 'using' a variable to prevent compiler unused variable warning
 	for (size_t i = 0; i < table->col_count; i++) {
 		if (strcmp(table->columns[i].name, name) == 0) {
-			printf("Found column name: %s\n",table->columns[i].name);
+			//printf("Found column name: %s\n",table->columns[i].name);
 			return &(table->columns[i]);
 		}
 	}
@@ -91,7 +91,7 @@ void add_context(Result* result, ClientContext* client_context, char* name) {
     // convert positions to generalized column
     chandle_table = &client_context->chandle_table[client_context->chandles_in_use];
     strcpy(chandle_table->name, name);
-    printf("%d slot Added context, name is %s", client_context->chandles_in_use, chandle_table->name);
+    //printf("%d slot Added context, name is %s", client_context->chandles_in_use, chandle_table->name);
     // convert positions to generalized column
     // set column type to RESULT
     chandle_table->generalized_column.column_type = RESULT;

@@ -221,6 +221,11 @@ typedef enum AggregateType {
     MAX,
 } AggregateType;
 
+typedef enum SelectType {
+    ONE_COLUMN,
+    TWO_COLUMN,
+} SelectType;
+
 /*
  * necessary fields for creation
  * "create_type" indicates what kind of object you are creating. 
@@ -254,9 +259,10 @@ typedef struct LoadOperator {
 typedef struct SelectOperator {
     Column* column;
     size_t column_length;
-    char* position_vector;
-    char* value_vector;
+    char position_vector[MAX_SIZE_NAME];
+    char value_vector[MAX_SIZE_NAME];
     char intermediate[MAX_SIZE_NAME];
+    SelectType select_type;
     int low;
     int high;
 } SelectOperator;
@@ -268,7 +274,8 @@ typedef struct FetchOperator {
 } FetchOperator;
 
 typedef struct PrintOperator {
-    char intermediate[MAX_SIZE_NAME];
+    char** intermediates;
+    size_t number_intermediates;
 } PrintOperator;
 
 typedef struct AggregateOperator{

@@ -267,7 +267,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             free (dbo);
             return NULL;
         } 
-        printf("Parse relational insert returnDBO\n");
+        //printf("Parse relational insert returnDBO\n");
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
@@ -381,6 +381,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             // make insert operator. 
             DbOperator* dbo = malloc(sizeof(DbOperator));
             dbo->type = SELECT;
+            dbo->operator_fields.select_operator.select_type = ONE_COLUMN;
             strcpy(dbo->operator_fields.select_operator.intermediate, intermediate);
             dbo->operator_fields.select_operator.column = select_column;
             dbo->operator_fields.select_operator.column_length = select_table->table_length;
@@ -406,7 +407,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
 
                 if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.high = __INT_MAX__;
                 else dbo->operator_fields.select_operator.high = atoi(token) - 1;   
-                printf("Just for check %s %d %d\n",token,  dbo->operator_fields.select_operator.low, dbo->operator_fields.select_operator.high);
+                //printf("Just for check %s %d %d\n",token,  dbo->operator_fields.select_operator.low, dbo->operator_fields.select_operator.high);
             } else {
                 send_message->status = OBJECT_NOT_FOUND;
                 free(dbo);
@@ -416,10 +417,12 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             free(to_free);
             return dbo;
         } else { // 4
-        printf("4 vars %s\n", tokenizer_copy);
+        //printf("4 vars %s\n", tokenizer_copy);
             // parse table input
             char* name1 = next_token(&tokenizer_copy, &send_message->status);
             char* name2 = next_token(&tokenizer_copy, &send_message->status);
+
+            //printf("4 vars %s %s\n", name1, name2);
             if (send_message->status == INCORRECT_FORMAT) {
                 free(to_free);
                 return NULL;
@@ -428,12 +431,14 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             // make insert operator. 
             DbOperator* dbo = malloc(sizeof(DbOperator));
             dbo->type = SELECT;
+            dbo->operator_fields.select_operator.select_type = TWO_COLUMN;
             strcpy(dbo->operator_fields.select_operator.intermediate, intermediate);
-            dbo->operator_fields.select_operator.position_vector = name1;
-            dbo->operator_fields.select_operator.value_vector = name2;
+            strcpy(dbo->operator_fields.select_operator.position_vector, name1);
+            strcpy(dbo->operator_fields.select_operator.value_vector, name2);
 
             // parse inputs until we reach the end. Turn each given string into an integer. 
             if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+                //printf("token%s\n", token);
                 if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.low = -__INT_MAX__-1;
                 else dbo->operator_fields.select_operator.low = atoi(token);     
             } else {
@@ -443,6 +448,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
                 return NULL;
             }
             if ((token = strsep(&tokenizer_copy, ",")) != NULL) {
+                                //printf("token%s\n", token);
                 int last_char = strlen(token) - 1;
                 if (last_char < 0 || token[last_char] != ')') {
                     free(dbo);
@@ -454,7 +460,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
 
                 if (strcmp(token, "null") == 0) dbo->operator_fields.select_operator.high = __INT_MAX__;
                 else dbo->operator_fields.select_operator.high = atoi(token) - 1;   
-                printf("Just for check %s %d %d\n",token,  dbo->operator_fields.select_operator.low, dbo->operator_fields.select_operator.high);
+                //printf("Just for check %s %d %d\n",token,  dbo->operator_fields.select_operator.low, dbo->operator_fields.select_operator.high);
             } else {
                 send_message->status = OBJECT_NOT_FOUND;
                 free(dbo);
@@ -513,7 +519,7 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             dbo->type = AGGREGATE;
             strcpy(dbo->operator_fields.aggregate_operator.intermediate, intermediate);
             dbo->operator_fields.aggregate_operator.aggregate_type = aggregate_type;
-                        printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
+                        //printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
             dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
             dbo->operator_fields.aggregate_operator.gc1 = generalized_column;
             free(to_free);
@@ -522,7 +528,7 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             // ADD, SUB, MAX(with position), MIN(with position)
             char* raw_intermediate1 = next_token(&tokenizer_copy, &send_message->status);
             char* raw_intermediate2 = next_token(&tokenizer_copy, &send_message->status);
-            printf("Raw intermediates %s  %s", raw_intermediate1, raw_intermediate2);
+            //printf("Raw intermediates %s  %s", raw_intermediate1, raw_intermediate2);
             char* db_name1 = NULL;
             char* table_name1 = NULL;
             char* column_name1 = NULL;
@@ -560,7 +566,7 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
             dbo->operator_fields.aggregate_operator.variable_number = intermediate_number;
             dbo->operator_fields.aggregate_operator.gc1 = generalized_column1;
             dbo->operator_fields.aggregate_operator.gc2 = generalized_column2;
-            printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
+            //printf("Type Number: %d\n", dbo->operator_fields.aggregate_operator.aggregate_type);
             free(to_free);
             return dbo;
         } else {
@@ -577,26 +583,48 @@ DbOperator* parse_aggregate(char* intermediate, char* query_command, AggregateTy
 
 DbOperator* parse_print(char* query_command, message* send_message) {
     char* token = NULL;
+    char *tokenizer_copy, *to_free;
+    // Since strsep destroys input, we create a copy of our input. 
+    tokenizer_copy = to_free = malloc((strlen(query_command)+1) * sizeof(char));
+    strcpy(tokenizer_copy, query_command);
     // check for leading '('
-    if (strncmp(query_command, "(", 1) == 0) {
+    if (strncmp(tokenizer_copy, "(", 1) == 0) {
         query_command++;
         char** command_index = &query_command;
-        // parse table input
-        char* name = next_token(command_index, &send_message->status);
-        if (send_message->status == INCORRECT_FORMAT) {
-            return NULL;
+        size_t intermediate_number = 1;
+        for (size_t i = 0; tokenizer_copy[i]; i++) {
+            if (tokenizer_copy[i] == ',') intermediate_number++;
         }
-        char* intermediate = strtok(name, ")");
+        int last_char = strlen(query_command) - 1;
+        // replace final ')' with null-termination character.
+        if (query_command[last_char] == ')') query_command[last_char] = '\0';
+        // parse table input
+        // create intermediates and allocate memory
+        // TODO: check if free intermediates or not
+        char** intermediates = malloc(intermediate_number * sizeof(char*));
+
+        char* name;
+        size_t inter_index = 0;
+
+        while (name = next_token(command_index, &send_message->status)) {
+            intermediates[inter_index++] = name;
+        }
+        // for (size_t i = 0;i<intermediate_number;i++){
+        //     printf("-%s-",intermediates[i]);
+        // }
         
         // make print operator. 
         DbOperator* dbo = malloc(sizeof(DbOperator));
         dbo->type = PRINT;
-        strcpy(dbo->operator_fields.print_operator.intermediate,intermediate);
-        // printf("Prinet: intermediate name is %s\n", dbo->operator_fields.print_operator.intermediate);
+        dbo->operator_fields.print_operator.intermediates = intermediates;
+        dbo->operator_fields.print_operator.number_intermediates = intermediate_number;
+        // printf("Prinet: intermediate name is %ld\n", dbo->operator_fields.print_operator.number_intermediates);
         send_message->status = OK_DONE;
+        free(to_free);
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
+        free(to_free);
         return NULL;
     }
 }
