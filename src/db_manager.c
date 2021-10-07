@@ -28,6 +28,7 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 		cs165_log(stdout,"%d\n",current_db->tables_capacity);
 	}
 	// Create new table using the pre-allocated memory
+	printf("Table Size: %ld\n",current_db->tables_size);
 	Table* table = &(current_db->tables[current_db->tables_size]);
 	current_db->tables_size++;
 	// Initialized table should have both 0 cols and 0 rows
@@ -38,7 +39,9 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
 	// Allocate memory for columns
 	table->columns = malloc(num_columns * sizeof(Column));
 	strcpy(table->name, name);
-
+	for (size_t i = 0; i < current_db->tables_size; i++) {
+		printf("%s\n", current_db->tables[i].name);
+	}
 	// TODO: update catalog file for database
 
 	ret_status->code=OK;
@@ -82,6 +85,7 @@ Column* create_column(Table *table, char *name, bool sorted, Status *ret_status)
 		ret_status->error_message = "Maximum column capacity exceeded.";
 		return NULL;
 	}
+	printf("Create column in table %s\n", table->name);
 	// Create new column using the pre-allocated memory
 	Column* column = &(table->columns[table->col_count]);
 	table->col_count++;

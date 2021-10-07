@@ -7,7 +7,7 @@ Table* lookup_table(char *name);
 
 Column* lookup_column(Table* table, char *name);
 
-GeneralizedColumn* lookup_variables(char *name, ClientContext* client_context);
+GeneralizedColumn* lookup_variables(char* db_name, char* table_name, char* column_name, char* name, ClientContext* client_context);
 
 void add_context(Result* result, ClientContext* client_context, char* name);
 

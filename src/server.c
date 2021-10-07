@@ -71,6 +71,7 @@ void execute_create(DbOperator* query, message* send_message) {
 }
 
 void execute_insert(DbOperator* query, message* send_message) {
+    printf("Execute Insert");
     Table* insert_table = query->operator_fields.insert_operator.table;
     if (!insert_table) {
         send_message->status = OBJECT_NOT_FOUND;
@@ -94,6 +95,7 @@ void execute_insert(DbOperator* query, message* send_message) {
             // sync and unmap before expand capacity
             if (map_column(insert_table, &insert_table->columns[i]) == -1) {
                 cs165_log(stdout, "Memory mapping failed.\n");
+                printf("Memory mapping failed.\n");
                 send_message->status = EXECUTION_ERROR;
                 return;
             }
@@ -105,11 +107,11 @@ void execute_insert(DbOperator* query, message* send_message) {
         send_message->status = OBJECT_NOT_FOUND;
         return;
     }
-
+    printf("Now inserting insert_table->col_count %ld \n",insert_table->col_count);
     for (size_t i = 0; i < insert_table->col_count; i++) {
         Column* current_column = &(insert_table->columns[i]);
         // current_column->data = realloc(current_column, insert_table->table_length * sizeof(int));
-        current_column->data[insert_table->table_length-1] = insert_values[i];
+        current_column->data[insert_table->table_length] = insert_values[i];
         // increase the length of current_column
         current_column->length++;
     }
@@ -197,40 +199,150 @@ void execute_load(DbOperator* query, message* send_message) {
 
 void execute_select(DbOperator* query, message* send_message) {
 
-    Column* column = query->operator_fields.select_operator.column;
-    int low = query->operator_fields.select_operator.low;
-    int high = query->operator_fields.select_operator.high;
-    // map context file
-	size_t* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(size_t));
-    
-    int index = 0;
+    if (query->operator_fields.select_operator.column == NULL && query->operator_fields.select_operator.value_vector != NULL && query->operator_fields.select_operator.position_vector != NULL) {
+        Result* position_vector = lookup_variables(NULL, NULL, NULL, query->operator_fields.select_operator.position_vector, query->context)->column_pointer.result;
+        Result* value_vector = lookup_variables(NULL, NULL, NULL, query->operator_fields.select_operator.value_vector, query->context)->column_pointer.result;
+        int low = query->operator_fields.select_operator.low;
+        int high = query->operator_fields.select_operator.high;
+        if (position_vector->data_type == FLOAT) {
+            send_message->status = INCORRECT_FORMAT;
+        } else {
+            if (value_vector->data_type == INT) {
+// map context file
+                int* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(int));
+                
+                int index = 0;
+                size_t* positions = position_vector->payload;
+                int* values = value_vector->payload;
+                for (size_t i = 0; i < position_vector->num_tuples; i++) {
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                }
 
-    for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++) {
-        if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
+                // insert selected positions to client context
+                ClientContext* client_context = query->context;
+                // check if client context is full
+                if (client_context->chandles_in_use == client_context->chandle_slots) {
+                    cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+                    client_context->chandle_slots *= 2;
+                    client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+                }
+                // convert positions to generalized column
+                GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+                strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
+                // set column type to RESULT
+                chandle_table->generalized_column.column_type = RESULT;
+                // insert selected data into Result*
+                chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+                chandle_table->generalized_column.column_pointer.result->data_type = INT;
+                chandle_table->generalized_column.column_pointer.result->num_tuples = index;
+                chandle_table->generalized_column.column_pointer.result->payload = select_data; 
+                printf("Index after select %d for low %d high %d \n", index, low, high);
+                    for (size_t i = 0; i < index; i++) {
+        printf("-%d-\n", select_data[i]);
     }
+            } else if (value_vector->data_type == LONG) {
+                // map context file
+                long* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(long));
+                
+                int index = 0;
+                size_t* positions = position_vector->payload;
+                long* values = value_vector->payload;
+                for (size_t i = 0; i < position_vector->num_tuples; i++) {
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                }
 
-    // insert selected positions to client context
-    ClientContext* client_context = query->context;
-    // check if client context is full
-    if (client_context->chandles_in_use == client_context->chandle_slots) {
-        cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
-        client_context->chandle_slots *= 2;
-        client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+                // insert selected positions to client context
+                ClientContext* client_context = query->context;
+                // check if client context is full
+                if (client_context->chandles_in_use == client_context->chandle_slots) {
+                    cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+                    client_context->chandle_slots *= 2;
+                    client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+                }
+                // convert positions to generalized column
+                GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+                strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
+                // set column type to RESULT
+                chandle_table->generalized_column.column_type = RESULT;
+                // insert selected data into Result*
+                chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+                chandle_table->generalized_column.column_pointer.result->data_type = LONG;
+                chandle_table->generalized_column.column_pointer.result->num_tuples = index;
+                chandle_table->generalized_column.column_pointer.result->payload = select_data; 
+                printf("Index after select %d for low %d high %d \n", index, low, high);
+                    for (size_t i = 0; i < index; i++) {
+        printf("-%ld-\n", select_data[i]);
     }
-    // convert positions to generalized column
-    GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
-    strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
-    // set column type to RESULT
-    chandle_table->generalized_column.column_type = RESULT;
-    // insert selected data into Result*
-    chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
-    chandle_table->generalized_column.column_pointer.result->data_type = LONG;
-    chandle_table->generalized_column.column_pointer.result->num_tuples = index;
-    chandle_table->generalized_column.column_pointer.result->payload = select_data; 
-    printf("Index after select %d for low %d high %d \n", index, low, high);
-    // for (size_t i = 0; i < index; i++) {
-    //     printf("-%ld-\n", select_data[i]);
-    // }
+            } else {
+                // map context file
+                float* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(float));
+                
+                int index = 0;
+                size_t* positions = position_vector->payload;
+                float* values = value_vector->payload;
+                for (size_t i = 0; i < position_vector->num_tuples; i++) {
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                }
+
+                // insert selected positions to client context
+                ClientContext* client_context = query->context;
+                // check if client context is full
+                if (client_context->chandles_in_use == client_context->chandle_slots) {
+                    cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+                    client_context->chandle_slots *= 2;
+                    client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+                }
+                // convert positions to generalized column
+                GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+                strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
+                // set column type to RESULT
+                chandle_table->generalized_column.column_type = RESULT;
+                // insert selected data into Result*
+                chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+                chandle_table->generalized_column.column_pointer.result->data_type = FLOAT;
+                chandle_table->generalized_column.column_pointer.result->num_tuples = index;
+                chandle_table->generalized_column.column_pointer.result->payload = select_data; 
+                printf("Index after select %d for low %d high %d \n", index, low, high);
+                    for (size_t i = 0; i < index; i++) {
+        printf("-%f-\n", select_data[i]);
+    }
+            }
+        }
+    } else {
+        Column* column = query->operator_fields.select_operator.column;
+        int low = query->operator_fields.select_operator.low;
+        int high = query->operator_fields.select_operator.high;
+        // map context file
+        size_t* select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(size_t));
+        
+        int index = 0;
+
+        for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++) {
+            if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
+        }
+
+        // insert selected positions to client context
+        ClientContext* client_context = query->context;
+        // check if client context is full
+        if (client_context->chandles_in_use == client_context->chandle_slots) {
+            cs165_log(stdout, "client context has no available slots, expand chandle table.\n");
+            client_context->chandle_slots *= 2;
+            client_context->chandle_table = realloc(client_context->chandle_table, client_context->chandle_slots * sizeof(GeneralizedColumnHandle));
+        }
+        // convert positions to generalized column
+        GeneralizedColumnHandle* chandle_table = &client_context->chandle_table[client_context->chandles_in_use++];
+        strcpy(chandle_table->name, query->operator_fields.select_operator.intermediate);
+        // set column type to RESULT
+        chandle_table->generalized_column.column_type = RESULT;
+        // insert selected data into Result*
+        chandle_table->generalized_column.column_pointer.result = malloc(sizeof(Result));
+        chandle_table->generalized_column.column_pointer.result->data_type = LONG;
+        chandle_table->generalized_column.column_pointer.result->num_tuples = index;
+        chandle_table->generalized_column.column_pointer.result->payload = select_data; 
+        printf("Index after select %d for low %d high %d \n", index, low, high);
+    }
+   
+
     send_message->status = OK_DONE;
 }
 
@@ -285,9 +397,9 @@ void execute_fetch(DbOperator* query, message* send_message) {
     chandle_table->generalized_column.column_pointer.result->data_type = INT;
     chandle_table->generalized_column.column_pointer.result->num_tuples = positions_len;
     chandle_table->generalized_column.column_pointer.result->payload = fetch_data; 
-    // for (size_t i = 0; i < chandle_table->generalized_column.column_pointer.result->num_tuples; i++) {
-    //     printf("~%d~", fetch_data[i]);
-    // }
+    for (size_t i = 0; i < chandle_table->generalized_column.column_pointer.result->num_tuples; i++) {
+        printf("~%d~ ", fetch_data[i]);
+    }
     send_message->status = OK_DONE;
 }
 
@@ -420,7 +532,9 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                         int* payload1 = data1->payload;
                         int* payload2 = data2->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++) {
+                            printf("%d is AGG TYPE\n",agg_type);
                             payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
+                            printf( "--%d %d %ld\n", payload1[i] , payload2[i], payload[i]);
                         }
                         result->num_tuples = data1->num_tuples;
                         result->data_type = LONG;
@@ -704,6 +818,7 @@ void execute_aggregate(DbOperator* query, message* send_message) {
         free(result);
         return;
     }
+    printf("Intermediate %s", query->operator_fields.aggregate_operator.intermediate);
     add_context(result, client_context, query->operator_fields.aggregate_operator.intermediate);
 }
 

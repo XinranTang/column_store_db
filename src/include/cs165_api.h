@@ -254,6 +254,8 @@ typedef struct LoadOperator {
 typedef struct SelectOperator {
     Column* column;
     size_t column_length;
+    char* position_vector;
+    char* value_vector;
     char intermediate[MAX_SIZE_NAME];
     int low;
     int high;
