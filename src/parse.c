@@ -229,21 +229,20 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
  **/
 
 DbOperator* parse_insert(char* query_command, message* send_message) {
-    unsigned int columns_inserted = 0;
     char* token = NULL;
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0) {
         query_command++;
         char** command_index = &query_command;
         // parse table input
-        char* table_name = next_token(command_index, &send_message->status);
+        char* name = next_token(command_index, &send_message->status);
         if (send_message->status == INCORRECT_FORMAT) {
             return NULL;
         }
         // lookup the table and make sure it exists. 
         // TODO: implement lookup table
-        table_name = sep_token(&table_name, ".", &send_message->status);
-        table_name = sep_token(&table_name, ".", &send_message->status);
+        char* table_name = sep_token(&name, ".", &send_message->status);
+        table_name = sep_token(&name, ".", &send_message->status);
         Table* insert_table = lookup_table(table_name);
         if (insert_table == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
@@ -255,6 +254,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         dbo->operator_fields.insert_operator.table = insert_table;
         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
         // parse inputs until we reach the end. Turn each given string into an integer. 
+        size_t columns_inserted = 0;
         while ((token = sep_token(command_index, ",", &send_message->status)) != NULL) {
             int insert_val = atoi(token);
             dbo->operator_fields.insert_operator.values[columns_inserted] = insert_val;

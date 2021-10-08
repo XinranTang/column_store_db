@@ -60,7 +60,7 @@ int map_column(Table* table, Column* column) {
 	strcpy(column_path, COLUMN_PATH);
     strcat(column_path, table->name);
     strcat(column_path, PATH_SEP);
-    
+
     // create column path for table if not exist
     if (stat(column_path, &st) == -1) {
         mkdir(column_path, 0600);
@@ -76,21 +76,39 @@ int map_column(Table* table, Column* column) {
 	result = lseek(fd, table->table_length_capacity * sizeof(int) - 1, SEEK_SET);
 	if (result == -1) {
 		cs165_log(stdout, "Cannot lseek in column page file %s\n", column_path);
-		return NULL;
+		return -1;
 	}
 	result = write(fd, "", 1);
 	if (result == -1) {
 		cs165_log(stdout, "Cannot write zero-byte at the end of column page file %s\n", column_path);
-		return NULL;
+		return -1;
 	}
 	column->data = mmap(0, table->table_length_capacity * sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (column->data == MAP_FAILED) {
 		close(fd);
 		cs165_log(stdout, "Memory mapping failed column page file %s\n", column_path);
-		return NULL;
+		return -1;
 	}
+    if (msync(column->data, table->table_length_capacity * sizeof(int), MS_SYNC) == -1) {
+        cs165_log(stdout, "Memory syncing the file %s failed.\n", column_path);
+        return -1;
+    }
 	// TODO: further check: closing the file descriptor does not unmap the region
 	close(fd);
+    return 0;
+}
+
+int syncing_column (Column* column, Table* table) {
+    printf("Syncing column %s \n",column->name);
+    char column_path[MAX_COLUMN_PATH];
+	strcpy(column_path, COLUMN_PATH);
+    strcat(column_path, table->name);
+    strcat(column_path, PATH_SEP);
+    if (msync(column->data, table->table_length_capacity * sizeof(int), MS_SYNC) == -1) {
+        cs165_log(stdout, "Memory syncing the file %s failed.\n", column_path);
+        return -1;
+    }
+    return 0;
 }
 
 int persist_database() {

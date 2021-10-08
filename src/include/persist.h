@@ -1,6 +1,7 @@
 #include "cs165_api.h"
 #include "common.h"
 #include "utils.h"
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -11,6 +12,8 @@
 int load_database();
 
 int map_column(Table* table, Column* column);
+
+int syncing_column (Column* column, Table* table);
 
 // void map_context(char* intermediate, int context_capacity, void* data);
 

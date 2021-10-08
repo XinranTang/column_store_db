@@ -20,6 +20,9 @@ Db *current_db;
  * to the caller that there was an error in table creation
  */
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_status) {
+	if (strcmp(current_db->name, db->name) != 0) {
+		return NULL;
+	}
 	// Check if current db has table_size == table_capacity
 	if(current_db->tables_size == current_db->tables_capacity){
 				// expand capacity and reallocate memory

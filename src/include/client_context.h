@@ -2,6 +2,8 @@
 #define CLIENT_CONTEXT_H
 
 #include "cs165_api.h"
+#include "utils.h"
+#include <string.h>
 
 Table* lookup_table(char *name);
 
