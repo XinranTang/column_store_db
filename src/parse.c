@@ -241,8 +241,8 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         }
         // lookup the table and make sure it exists. 
         // TODO: implement lookup table
-        char* table_name = sep_token(&name, ".", &send_message->status);
-        table_name = sep_token(&name, ".", &send_message->status);
+         char* table_name = sep_token(&name, ".", &send_message->status);
+         table_name = sep_token(&name, ".", &send_message->status);
         Table* insert_table = lookup_table(table_name);
         if (insert_table == NULL) {
             send_message->status = OBJECT_NOT_FOUND;
@@ -253,8 +253,8 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         dbo->type = INSERT;
         dbo->operator_fields.insert_operator.table = insert_table;
         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
-        // parse inputs until we reach the end. Turn each given string into an integer. 
         size_t columns_inserted = 0;
+        // parse inputs until we reach the end. Turn each given string into an integer. 
         while ((token = sep_token(command_index, ",", &send_message->status)) != NULL) {
             int insert_val = atoi(token);
             dbo->operator_fields.insert_operator.values[columns_inserted] = insert_val;
@@ -266,7 +266,6 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             free (dbo);
             return NULL;
         } 
-        //printf("Parse relational insert returnDBO\n");
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
@@ -723,8 +722,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         dbo = parse_print(query_command, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         dbo = parse_shutdown(send_message);
-    }
-    
+    } 
     if (dbo == NULL) {
         return dbo;
     }

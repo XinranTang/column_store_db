@@ -36,12 +36,14 @@ int load_database() {
             fread(current_column, sizeof(Column), 1, fp);
             
             map_column(current_table, current_column);
-            //printf("Column length: %s, %ld\n",current_column->name, current_column->length);
+            // printf("Column length: %s, %ld\n",current_column->name, current_column->length);
         }
     }
-    //printf("Loading database, sizeof table is %ld\n", current_db->tables_size);
-    //for (size_t i = 0 ; i < current_db->tables_size; i++) {
-    //printf("Loading db, table name: %s\n",current_db->tables[i].name);}
+    // printf("Loading database, sizeof table is %ld\n", current_db->tables_size);
+    // for (size_t i = 0 ; i < current_db->tables_size; i++) {
+    // printf("Loading db, table name: %s\n",current_db->tables[i].name);
+    // printf("Loading db, table name: %ld\n",current_db->tables[i].table_length);
+    // }
     fclose(fp);
     return return_flag;
 }
@@ -99,7 +101,7 @@ int map_column(Table* table, Column* column) {
 }
 
 int syncing_column (Column* column, Table* table) {
-    printf("Syncing column %s \n",column->name);
+    // printf("Syncing column %s \n",column->name);
     char column_path[MAX_COLUMN_PATH];
 	strcpy(column_path, COLUMN_PATH);
     strcat(column_path, table->name);

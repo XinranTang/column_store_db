@@ -39,7 +39,7 @@ machine please look into this as a a source of error. */
  **/
 int connect_client() {
     int client_socket;
-    size_t len;
+    int len;
     struct sockaddr_un remote;
 
     log_info("-- Attempting to connect...\n");
@@ -105,7 +105,11 @@ int main(void)
         // Convert to message and send the message and the
         // payload directly to the server.
         send_message.length = strlen(read_buffer);
-        if (send_message.length > 1) {
+
+        // TODO: check here
+        // I don't know how to receive print() result using message struct, since it only supports char array
+        // So I seperate the case that a print() query is sent from the client
+        if (strncmp(read_buffer, "print", 5) == 0) {
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
                 log_err("Failed to send message header.");
@@ -120,19 +124,56 @@ int main(void)
 
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                printf("Client: received message\n");
+                // printf("Received 1\n");
+                if ((recv_message.status == OK_WAIT_FOR_RESPONSE) || (recv_message.status == OK_DONE)) {
+                    // Calculate number of bytes in response package
+                    int num_bytes = 32 * recv_message.length;
+                    char payload[num_bytes];
+                    // size_t num_print = recv_message.length;
+                    // Receive the payload and print it out
+                    while ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
+                        if (payload[0] == 1){
+                            // printf(" break;\n");
+                            break;
+                        }
+                        int i = 0;
+                        for (; i < num_bytes; i ++) {
+                            if (!payload[i]) {
+                                payload[i] = '\0';
+                            }
+                        }
+                        printf("%s\n", payload);
+                    }
+                }
+            }
+        }
+
+        else if (send_message.length > 1) {
+            // printf("received 2\n");
+            // Send the message_header, which tells server payload size
+            if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
+                log_err("Failed to send message header.");
+                exit(1);
+            }
+
+            // Send the payload (query) to server
+            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
+                log_err("Failed to send query payload.");
+                exit(1);
+            }
+
+            // Always wait for server response (even if it is just an OK message)
+            if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
                 if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
                     (int) recv_message.length > 0) {
-                    printf("Checking passed: recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) && (int) recv_message.length > 0\n");
                     // Calculate number of bytes in response package
                     int num_bytes = (int) recv_message.length;
                     char payload[num_bytes + 1];
 
                     // Receive the payload and print it out
                     if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        printf("Checking passed: (len = recv(client_socket, payload, num_bytes, 0)) > 0\n");
                         payload[num_bytes] = '\0';
-                        printf("%s\n", payload);
+                        if (strncmp(payload, "cs165", 5) == 0) printf("%s\n", payload);
                     }
                 }
             }

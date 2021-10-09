@@ -113,7 +113,9 @@ void execute_insert(DbOperator* query, message* send_message) {
         // syncing_column(current_column, insert_table);
         // increase the length of current_column
         current_column->length++;
+        // printf("column length after insert: %ld\n",current_column->length);
     }
+    
     send_message->status = OK_DONE;
 }
 
@@ -452,6 +454,7 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                 long* result_data = malloc(1 * sizeof(long));
                 *result_data = 0;
                 for (size_t i = 0; i < gc1->column_pointer.column->length; i++) {
+                    // printf("-%d- ",gc1->column_pointer.column->data[i]);
                     *result_data += gc1->column_pointer.column->data[i];
                 }
                 result->payload = result_data;
@@ -774,9 +777,9 @@ void execute_print(DbOperator* query, message* send_message) {
     DataType data_type;
     Result** results = malloc(query->operator_fields.print_operator.number_intermediates * sizeof(Result*));
     char** intermediates = query->operator_fields.print_operator.intermediates;
-            for (size_t i = 0;i<query->operator_fields.print_operator.number_intermediates;i++){
-            // printf("-%s-",intermediates[i]);
-        }
+        //     for (size_t i = 0;i<query->operator_fields.print_operator.number_intermediates;i++){
+        //     // printf("-%s-",intermediates[i]);
+        // }
     for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
         char* intermediate = intermediates[j];
         for (int i = 0; i < client_context->chandles_in_use; i++) {
@@ -789,31 +792,44 @@ void execute_print(DbOperator* query, message* send_message) {
     }
     print_len = results[0]->num_tuples;
     
+    message print_message_header;
+    // TODO: here send_buffer/payload is not assigned
+    print_message_header.length = query->operator_fields.print_operator.number_intermediates;
+    print_message_header.status = OK_WAIT_FOR_RESPONSE;
+    send(query->client_fd, &(print_message_header), sizeof(message), 0);
     for (size_t i = 0; i < print_len; i++) {
         for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
-            if (j != 0) printf(", ");
+            char print_chars[32 * print_message_header.length];
+            // if (j != 0) {
+            //     char* print_chars = ",";
+            //     send(query->client_fd, print_chars, sizeof(print_chars), 0);
+            //     printf(",");
+            // }
             print_data = results[j]->payload;
             data_type = results[j]->data_type;
             if (data_type == INT) {
                 int* print_int = (int*) print_data;
-
-                    send(query->client_fd, &print_int[i], sizeof(int), 0);
-                    printf("%d",print_int[i]);
-                    // printf("int//%d\n", print_int[i]);
+                if (j != 0) sprintf(print_chars, ",%d", print_int[i]);
+                else sprintf(print_chars, "%d", print_int[i]);
+                printf("int %d",print_int[i]);
             } else if (data_type == LONG) {
                 size_t* print_long = (size_t*) print_data;
-                    send(query->client_fd, &print_long[i], sizeof(long), 0);
-                    printf("%ld",print_long[i]);
+                if (j != 0) sprintf(print_chars, ",%ld", print_long[i]);
+                else sprintf(print_chars, "%ld", print_long[i]);
+                printf("long %ld",print_long[i]);
                     // printf("long//%ld\n", print_long[i]);
             } else if (data_type == FLOAT) {
                 float* print_float = (float*) print_data;
-                    send(query->client_fd, &print_float[i], sizeof(float), 0);
-                    printf("%f", print_float[i]);
+                if (j != 0) sprintf(print_chars, ",%.2f", print_float[i]);
+                else sprintf(print_chars, "%.2f", print_float[i]);
+                printf("float %.2f", print_float[i]);
                     // printf("float//%f\n", print_float[i]);
             }
+            send(query->client_fd, &print_chars, sizeof(print_chars), 0);
         }
-        printf("\n");
     }
+
+    send(query->client_fd, '\0' , 0 , 0);
     // Just print for checking on server side
     send_message->status = OK_DONE;
 }
@@ -838,7 +854,7 @@ void execute_shutdown(ClientContext* client_context) {
     persist_database();
     free_database();
     // TODO: send message to client side
-    exit(0);
+    exit(1);
 }
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -914,8 +930,8 @@ void handle_client(int client_socket) {
     do {
         length = recv(client_socket, &recv_message, sizeof(message), 0);
         if (length < 0) {
-            log_err("Client connection closed!\n");
-            exit(1);
+            log_info("Client connection closed!\n");
+            return;
         } else if (length == 0) {
             done = 1;
         }
@@ -945,15 +961,17 @@ void handle_client(int client_socket) {
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
                 log_err("Failed to send message.");
-                exit(1);
+                    // TODO: move the following executions to server side
+                // persist_database();
+                // free_database();
+                // exit(1);
             }
-            printf("3. Send status of the received message (OK, UNKNOWN_QUERY, etc)\n");
+
             // 4. Send response to the request
             if (send(client_socket, result, send_message.length, 0) == -1) {
                 log_err("Failed to send message.");
-                exit(1);
+                // exit(1);
             }
-            printf("4. Send response to the request)\n");
         }
     } while (!done);
 
@@ -972,9 +990,6 @@ void handle_client(int client_socket) {
     }
     free(client_context->chandle_table);
     free(client_context);
-    // TODO: move the following executions to server side
-    persist_database();
-    free_database();
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);
@@ -1040,27 +1055,29 @@ int main(void)
     if (db < 0) {
         cs165_log(stdout, "No current database ...\n");
     }
-    while (1) {
-        int server_socket = setup_server();
-        if (server_socket < 0) {
-            exit(1);
-        }
 
-        log_info("Waiting for a connection %d ...\n", server_socket);
+    int server_socket = setup_server();
+    if (server_socket < 0) {
+        exit(1);
+    }
 
-        struct sockaddr_un remote;
-        socklen_t t = sizeof(remote);
-        int client_socket = 0;
+    log_info("Waiting for a connection %d ...\n", server_socket);
 
-        // TODO: handle multiple clients
-        if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
-            log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-            exit(1);
-        }
+    struct sockaddr_un remote;
+    socklen_t t = sizeof(remote);
+    int client_socket = 0;
 
+    // TODO: handle multiple clients
+    while ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t))) {
+        log_info("Connection accepted.\n", server_socket);
         handle_client(client_socket);
     }
-    
-
+    if (client_socket == -1) {
+        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+            // TODO: move the following executions to server side
+        persist_database();
+        free_database();
+        exit(1);
+    }
     return 0;
 }
