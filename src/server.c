@@ -857,7 +857,7 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
     // as practice with something like valgrind and to develop intuition on memory leaks, find and fix the memory leak. 
     if(!query)
     {
-        return "Done";
+        return "165";
     }
     if(query && query->type == CREATE) {
         execute_create(query, send_message);
@@ -878,7 +878,7 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
     } else if (query && query->type == SHUTDOWN) {
         execute_shutdown(query->context);
     }
-    return "Done";
+    return "165";
 }
 
 /**
@@ -895,10 +895,7 @@ void handle_client(int client_socket) {
     // Create two messages, one from which to read and one from which to receive
     message send_message;
     message recv_message;
-    // TODO: free payload
-    send_message.payload = malloc(sizeof(union payload));
-    recv_message.payload = malloc(sizeof(union payload));
-    printf("recv_message char_payload addre %x \n",*recv_message.payload->char_payload);
+
     // create the client context here
     ClientContext* client_context = NULL;
     client_context = malloc(sizeof(ClientContext));
@@ -925,17 +922,15 @@ void handle_client(int client_socket) {
 
         if (!done) {
             char recv_buffer[recv_message.length + 1];
-            printf("recv message legnth at server side %d\n",recv_message.length);
             length = recv(client_socket, recv_buffer, recv_message.length,0);
-                        printf("recv message at server side %s\n",recv_buffer);
-            recv_message.payload->char_payload = recv_buffer;
-            recv_message.payload->char_payload[recv_message.length] = '\0';
+            recv_message.payload = recv_buffer;
+            recv_message.payload[recv_message.length] = '\0';
             /////////////////////////
             // Important workflow
             /////////////////////////
             // 1. Parse command
             //    Query string is converted into a request for an database operator
-            DbOperator* query = parse_command(recv_message.payload->char_payload, &send_message, client_socket, client_context);
+            DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
 
             // 2. Handle request
             //    Corresponding database operator is exsecuted over the query
@@ -944,8 +939,7 @@ void handle_client(int client_socket) {
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
-            send_message.payload->char_payload = send_buffer;
-            send_message.data_type = CHAR;
+            send_message.payload = send_buffer;
             send_message.status = OK_WAIT_FOR_RESPONSE;
             
             // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
@@ -953,19 +947,14 @@ void handle_client(int client_socket) {
                 log_err("Failed to send message.");
                 exit(1);
             }
-            printf("3. Send status of the received message (OK, UNKNOWN_QUERY, etc)\n");
+
             // 4. Send response to the request
             if (send(client_socket, result, send_message.length, 0) == -1) {
                 log_err("Failed to send message.");
                 exit(1);
             }
-            printf("4. Send response to the request\n");
         }
     } while (!done);
-
-    // free message payload
-    free(send_message.payload);
-    free(recv_message.payload);
 
     // free client context
     for (int i = 0; i < client_context->chandles_in_use; i++) {

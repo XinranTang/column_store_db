@@ -27,7 +27,6 @@ machine please look into this as a a source of error. */
 #include "common.h"
 #include "message.h"
 #include "utils.h"
-#include "cs165_api.h"
 
 #define DEFAULT_STDIN_BUFFER_SIZE 1024
 
@@ -92,9 +91,7 @@ int main(void)
     // 1. output interactive marker
     // 2. read from stdin until eof.
     char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
-    // TODO: check if malloc memory is freed
-    send_message.payload = malloc(sizeof(union payload));
-    send_message.payload->char_payload = read_buffer;
+    send_message.payload = read_buffer;
     send_message.status = 0;
 
     while (printf("%s", prefix), output_str = fgets(read_buffer,
@@ -116,29 +113,23 @@ int main(void)
             }
 
             // Send the payload (query) to server
-            printf("Send char_payload: %s\n",send_message.payload->char_payload);
-            if (send(client_socket, send_message.payload->char_payload, send_message.length, 0) == -1) {
+            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
                 log_err("Failed to send query payload.");
                 exit(1);
             }
 
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                printf("Client: received message\n");
                 if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
                     (int) recv_message.length > 0) {
-                    printf("Checking passed: recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) && (int) recv_message.length > 0\n");
-                    if (recv_message.data_type == CHAR) {
-                        // Calculate number of bytes in response package
-                        int num_bytes = (int) recv_message.length;
-                        char payload[num_bytes + 1];
+                    // Calculate number of bytes in response package
+                    int num_bytes = (int) recv_message.length;
+                    char payload[num_bytes + 1];
 
-                        // Receive the payload and print it out
-                        if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                            printf("Checking passed: (len = recv(client_socket, payload, num_bytes, 0)) > 0\n");
-                            payload[num_bytes] = '\0';
-                            printf("%s\n", payload);
-                        }
+                    // Receive the payload and print it out
+                    if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
+                        payload[num_bytes] = '\0';
+                        printf("%s\n", payload);
                     }
                 }
             }
@@ -153,7 +144,6 @@ int main(void)
             }
         }
     }
-    free(send_message.payload);
     close(client_socket);
     return 0;
 }

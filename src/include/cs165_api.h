@@ -45,8 +45,7 @@ SOFTWARE.
 typedef enum DataType {
      INT,
      LONG, // can be used to declare size_t type
-     FLOAT,
-     CHAR,
+     FLOAT
 } DataType;
 
 struct Comparator;
