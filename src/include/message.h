@@ -1,7 +1,6 @@
 #ifndef MESSAGE_H__
 #define MESSAGE_H__
 
-#include "cs165_api.h"
 // mesage_status defines the status of the previous request.
 // FEEL FREE TO ADD YOUR OWN OR REMOVE ANY THAT ARE UNUSED IN YOUR PROJECT
 typedef enum message_status {
@@ -25,16 +24,7 @@ typedef enum message_status {
 typedef struct message {
     message_status status;
     int length;
-    union payload* payload;
-    DataType data_type;
+    char* payload;
 } message;
-
-union payload
-{
-    char* char_payload;
-    int* int_payload;
-    long* long_payload;
-    float* float_payload;
-};
 
 #endif

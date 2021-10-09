@@ -13,10 +13,10 @@ import math
 
 # note this is the base path where we store the data files we generate
 TEST_BASE_DIR = "/cs165/generated_data"
-
+# TEST_BASE_DIR = "/home/sherry/Desktop/cs165-2021-project/project_tests/generated_data"
 # note this is the base path that _POINTS_ to the data files we generate
 DOCKER_TEST_BASE_DIR = "/cs165/staff_test"
-
+# DOCKER_TEST_BASE_DIR = "/home/sherry/Desktop/cs165-2021-project/project_tests/staff_test"
 #
 # Example usage: 
 #   python milestone1.py 10000 42 ~/repo/cs165-docker-test-runner/test_data /cs165/staff_test
