@@ -798,8 +798,9 @@ void execute_print(DbOperator* query, message* send_message) {
     print_message_header.status = OK_WAIT_FOR_RESPONSE;
     send(query->client_fd, &(print_message_header), sizeof(message), 0);
     for (size_t i = 0; i < print_len; i++) {
+        char print_chars[32 * print_message_header.length];
         for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
-            char print_chars[32 * print_message_header.length];
+
             // if (j != 0) {
             //     char* print_chars = ",";
             //     send(query->client_fd, print_chars, sizeof(print_chars), 0);
@@ -809,24 +810,27 @@ void execute_print(DbOperator* query, message* send_message) {
             data_type = results[j]->data_type;
             if (data_type == INT) {
                 int* print_int = (int*) print_data;
-                if (j != 0) sprintf(print_chars, ",%d", print_int[i]);
-                else sprintf(print_chars, "%d", print_int[i]);
+                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%d", print_int[i]);
+                else sprintf(strlen(print_chars) + print_chars, "%d", print_int[i]);
                 printf("int %d",print_int[i]);
             } else if (data_type == LONG) {
                 size_t* print_long = (size_t*) print_data;
-                if (j != 0) sprintf(print_chars, ",%ld", print_long[i]);
-                else sprintf(print_chars, "%ld", print_long[i]);
+                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%ld", print_long[i]);
+                else sprintf(strlen(print_chars) + print_chars, "%ld", print_long[i]);
                 printf("long %ld",print_long[i]);
                     // printf("long//%ld\n", print_long[i]);
             } else if (data_type == FLOAT) {
                 float* print_float = (float*) print_data;
-                if (j != 0) sprintf(print_chars, ",%.2f", print_float[i]);
-                else sprintf(print_chars, "%.2f", print_float[i]);
+                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%.2f", print_float[i]);
+                else sprintf(strlen(print_chars) + print_chars, "%.2f", print_float[i]);
                 printf("float %.2f", print_float[i]);
                     // printf("float//%f\n", print_float[i]);
             }
-            send(query->client_fd, &print_chars, sizeof(print_chars), 0);
+
         }
+        printf("To send: %s\n", print_chars);
+        send(query->client_fd, &print_chars, sizeof(print_chars), 0);
+        memset(print_chars, 0, strlen(print_chars));
     }
 
     send(query->client_fd, '\0' , 0 , 0);

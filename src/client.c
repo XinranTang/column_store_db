@@ -173,7 +173,7 @@ int main(void)
                     // Receive the payload and print it out
                     if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
                         payload[num_bytes] = '\0';
-                        if (strncmp(payload, "cs165", 5) == 0) printf("%s\n", payload);
+                        if(strncmp(payload, "165", 3) != 0) printf("%s\n", payload);
                     }
                 }
             }
