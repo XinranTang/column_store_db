@@ -361,7 +361,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             char* db_name = sep_token(&name, ".", &send_message->status);
             char* table_name = sep_token(&name, ".", &send_message->status);
             char* column_name = sep_token(&name, ".", &send_message->status);
-            // cs165_log(stdout, "%s, %s, %s, %s\n", db_name, table_name, column_name,current_db->name);
+            cs165_log(stdout, "%s, %s, %s, %s\n", db_name, table_name, column_name,current_db->name);
             if (strcmp(db_name, current_db->name) != 0) {
                 send_message->status = OBJECT_NOT_FOUND;
             }

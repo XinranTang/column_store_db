@@ -2,6 +2,16 @@
 #include <stdio.h>
 
 #include "hash_table.h"
+#include "cs165_api.h"
+
+size_t HASH = 5381;
+size_t hash_function(char* name) {
+    int c;
+    size_t hash = HASH;
+    while (c = *name++)
+        hash = ((hash << 5) + hash) + c;
+    return hash;
+}
 
 // Initialize the components of a hashtable.
 // The size parameter is the expected number of elements to be inserted.

@@ -58,9 +58,10 @@ Status create_db(const char* db_name) {
 	struct Status ret_status;
 	// if current database exists, return OBJECT_ALREADY_EXISTS error
 	if(current_db != NULL){
-		ret_status.code = ERROR;
-		ret_status.error_message = "Database already exiests.";
-		return ret_status;
+		// ret_status.code = ERROR;
+		// ret_status.error_message = "Database already exiests.";
+		// return ret_status;
+		free_database();
 	}
 
 	// create new database
