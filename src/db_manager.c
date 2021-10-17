@@ -8,6 +8,7 @@
 #include "message.h"
 #include "utils.h"
 #include "common.h"
+#include "persist.h"
 
 #define DB_MAX_TABLE_CAPACITY 10
 #define TABLE_INIT_LENGTH_CAPACITY 10
