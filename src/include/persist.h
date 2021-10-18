@@ -19,7 +19,7 @@ int syncing_column (Column* column, Table* table);
 
 int persist_database();
 
-int persist_table(Table* current_table);
+int persist_table(Table* current_table, FILE* fp);
 
 int persist_column(Table* current_table, Column* current_column);
 

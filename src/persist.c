@@ -116,6 +116,7 @@ int syncing_column (Column* column, Table* table) {
 int persist_database() {
     // open the database catalog file if exists
     // otherwise, create a new catalog file
+    // write database metadata
     FILE* fp = fopen(DB_PATH, "wb");
     // check if fopen() is successful
     int return_flag = 0;
@@ -126,7 +127,7 @@ int persist_database() {
     }
     fwrite(current_db, sizeof(Db), 1, fp);
     fclose(fp);
-
+    // write tables metadata
     fp = fopen(TABLE_PATH, "wb");
     if (!fp) {
         cs165_log(stdout, "Failed to open/create tables catalog\n");
@@ -135,48 +136,29 @@ int persist_database() {
     }
     for (size_t i = 0; i < current_db->tables_size; i++) {
         Table* current_table = &(current_db->tables[i]);
-        fwrite(current_table, sizeof(Table), 1, fp);
-        for (size_t j = 0; j < current_table->col_count; j++) {
-            Column* current_column = &(current_table->columns[j]);
-            //printf("Persist column %s %ld", current_column->name, current_column->length);
-            fwrite(current_column, sizeof(Column), 1, fp);
+        if (persist_table(current_table, fp) == -1) {
+            cs165_log(stdout, "Failed to persist dummy tables catalog\n");
+            return_flag = -1;
+            return return_flag;
         }
     }
     fclose(fp);
     return return_flag;
 }
 
-int persist_table(Table* current_table) {
-    FILE* fp = fopen(TABLE_PATH, "wb");
+int persist_table(Table* current_table, FILE* fp) {
     int return_flag = 0;
-    if (!fp) {
-        cs165_log(stdout, "Failed to open/create tables catalog\n");
-        return_flag = -1;
-        return return_flag;
-    }
- 
     fwrite(current_table, sizeof(Table), 1, fp);
     for (size_t j = 0; j < current_table->col_count; j++) {
         Column* current_column = &(current_table->columns[j]);
         fwrite(current_column, sizeof(Column), 1, fp);
-        return_flag = persist_column(current_table, current_column);
     }
     
-    fclose(fp);
+    for (size_t j = 0; j < current_table->col_count; j++) {
+        return_flag = persist_column(current_table, &(current_table->columns[j]));
+    }
     return return_flag;
 }
-
-// int persist_context(size_t* intermediate_data, int context_capacity) {
-//     if (msync(intermediate_data, context_capacity * sizeof(int), MS_SYNC) == -1) {
-//         cs165_log(stdout, "Memory syncing the context file failed.\n");
-//         return -1;
-//     }
-//     if (munmap(intermediate_data, context_capacity * sizeof(int)) == -1) {
-//         cs165_log(stdout, "Unmapping the context file failed.\n");
-//         return -1;
-//     }
-//     return 0;
-// }
 
 int persist_column(Table* current_table, Column* current_column) {
     // unmap column file

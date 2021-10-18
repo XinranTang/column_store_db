@@ -3,6 +3,7 @@
 
 #include "cs165_api.h"
 #include "utils.h"
+#include "common.h"
 
 Table* lookup_table(char *name);
 

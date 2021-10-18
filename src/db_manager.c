@@ -57,11 +57,14 @@ Table* create_table(Db* db, const char* name, size_t num_columns, Status *ret_st
  */
 Status create_db(const char* db_name) {
 	struct Status ret_status;
-	// if current database exists, return OBJECT_ALREADY_EXISTS error
+	// In the current design, if current database exists, the current database will be cleared in order to create a new one
+	// for the persisted database data, since we are only using one database, the persisted data will just be backed up on the disk
 	if(current_db != NULL){
 		// ret_status.code = ERROR;
 		// ret_status.error_message = "Database already exiests.";
 		// return ret_status;
+		persist_database();
+		
 		free_database();
 	}
 

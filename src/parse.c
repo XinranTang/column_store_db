@@ -361,7 +361,7 @@ DbOperator* parse_select(char* intermediate, char* query_command, message* send_
             char* db_name = sep_token(&name, ".", &send_message->status);
             char* table_name = sep_token(&name, ".", &send_message->status);
             char* column_name = sep_token(&name, ".", &send_message->status);
-            cs165_log(stdout, "%s, %s, %s, %s\n", db_name, table_name, column_name,current_db->name);
+            // cs165_log(stdout, "%s, %s, %s, %s\n", db_name, table_name, column_name,current_db->name);
             if (strcmp(db_name, current_db->name) != 0) {
                 send_message->status = OBJECT_NOT_FOUND;
             }
@@ -658,7 +658,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     if (equals_pointer != NULL) {
         // handle exists, store here. 
         *equals_pointer = '\0';
-        cs165_log(stdout, "FILE HANDLE: %s\n", handle);
+        // cs165_log(stdout, "FILE HANDLE: %s\n", handle);
         query_command = ++equals_pointer;
     } else {
         handle = NULL;
@@ -683,8 +683,8 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         }
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
-        cs165_log(stdout, "%s\n", query_command);
-        cs165_log(stdout, "%s\n", query_command);
+        // cs165_log(stdout, "%s\n", query_command);
+        // cs165_log(stdout, "%s\n", query_command);
         dbo = parse_insert(query_command, send_message);
     } else if (strncmp(query_command, "load", 4) == 0) {
         query_command += 4;
@@ -692,12 +692,12 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     // TODO: add other queries
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
-        cs165_log(stdout, "%s, %s\n", handle, query_command);
+        // cs165_log(stdout, "%s, %s\n", handle, query_command);
         dbo = parse_fetch(handle, query_command, send_message);
             // TODO: bug here !
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
-        cs165_log(stdout, "%s, %s\n", handle, query_command);
+        // cs165_log(stdout, "%s, %s\n", handle, query_command);
         dbo = parse_select(handle, query_command, send_message);
     } else if (strncmp(query_command, "avg", 3) == 0) {
         query_command += 3;

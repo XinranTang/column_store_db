@@ -184,6 +184,7 @@ void execute_load(DbOperator* query, message* send_message) {
         row++;
         current_table->table_length++;
         column = 0;
+        
         char* data =strtok(buffer, ",");
         while (data) {
             current_table->columns[column].data[row-1] = atoi(data);
