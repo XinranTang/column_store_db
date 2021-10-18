@@ -318,14 +318,12 @@ void execute_fetch(DbOperator* query, message* send_message) {
     // find specified positions vector in client context
     // TODO: extract find_context function later
     ClientContext* client_context = query->context;
-    for (int i = 0; i < client_context->chandles_in_use; i++) {
-        if (strcmp(client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions) == 0) {
-            //printf("Positions name for fetch %s with target %s", client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions);
-            positions = client_context->chandle_table[i].generalized_column.column_pointer.result->payload;
-            positions_len = client_context->chandle_table[i].generalized_column.column_pointer.result->num_tuples;
-            break;
-        }
-    }
+   
+    GeneralizedColumn* generalized_column = lookup_variables(NULL, NULL, NULL, query->operator_fields.fetch_operator.positions, client_context);
+ //printf("Positions name for fetch %s with target %s", client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions);
+    positions = generalized_column->column_pointer.result->payload;
+    positions_len = generalized_column->column_pointer.result->num_tuples;
+    
     // return if variable not found
     if (!positions) {
         cs165_log(stdout, "Variable not found in variable pool.");
@@ -783,13 +781,8 @@ void execute_print(DbOperator* query, message* send_message) {
         // }
     for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
         char* intermediate = intermediates[j];
-        for (int i = 0; i < client_context->chandles_in_use; i++) {
-            // printf("Check %s %s \n", client_context->chandle_table[i].name, query->operator_fields.print_operator.intermediate);
-            if (strcmp(client_context->chandle_table[i].name, intermediate) == 0) {
-                results[j] = client_context->chandle_table[i].generalized_column.column_pointer.result;
-                break;
-            }
-        }
+        GeneralizedColumn* generalized_column = lookup_variables(NULL, NULL, NULL, intermediate, client_context);
+        results[j] = generalized_column->column_pointer.result;
     }
     print_len = results[0]->num_tuples;
     
@@ -800,6 +793,8 @@ void execute_print(DbOperator* query, message* send_message) {
     send(query->client_fd, &(print_message_header), sizeof(message), 0);
     for (size_t i = 0; i < print_len; i++) {
         char print_chars[32 * print_message_header.length];
+        
+        for (size_t k = 0; k < strlen(print_chars); k++) print_chars[k] = '\0';
         for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
 
             // if (j != 0) {
@@ -813,23 +808,23 @@ void execute_print(DbOperator* query, message* send_message) {
                 int* print_int = (int*) print_data;
                 if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%d", print_int[i]);
                 else sprintf(strlen(print_chars) + print_chars, "%d", print_int[i]);
-                printf("int %d",print_int[i]);
+                // printf("int %d",print_int[i]);
             } else if (data_type == LONG) {
                 size_t* print_long = (size_t*) print_data;
                 if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%ld", print_long[i]);
                 else sprintf(strlen(print_chars) + print_chars, "%ld", print_long[i]);
-                printf("long %ld",print_long[i]);
+                // printf("long %ld",print_long[i]);
                     // printf("long//%ld\n", print_long[i]);
             } else if (data_type == FLOAT) {
                 float* print_float = (float*) print_data;
                 if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%.2f", print_float[i]);
                 else sprintf(strlen(print_chars) + print_chars, "%.2f", print_float[i]);
-                printf("float %.2f", print_float[i]);
+                // printf("float %.2f", print_float[i]);
                     // printf("float//%f\n", print_float[i]);
             }
 
         }
-        printf("To send: %s\n", print_chars);
+        // printf("To send: %s\n", print_chars);
         send(query->client_fd, &print_chars, sizeof(print_chars), 0);
         memset(print_chars, 0, strlen(print_chars));
     }
@@ -840,21 +835,9 @@ void execute_print(DbOperator* query, message* send_message) {
 }
 
 void execute_shutdown(ClientContext* client_context) {
+    // printf("execute_shutdown\n");
     // free client context
-    for (int i = 0; i < client_context->chandles_in_use; i++) {
-        // TODO: check whether to free result or column
-        if (client_context->chandle_table[i].generalized_column.column_type == RESULT) {
-            free(client_context->chandle_table[i].generalized_column.column_pointer.result->payload);
-            free(client_context->chandle_table[i].generalized_column.column_pointer.result);
-        }
-        // TODO: check how to free column
-        else if (client_context->chandle_table[i].generalized_column.column_type == COLUMN) {
-            free(client_context->chandle_table[i].generalized_column.column_pointer.column->data);
-            free(client_context->chandle_table[i].generalized_column.column_pointer.column);
-        }
-    }
-    free(client_context->chandle_table);
-    free(client_context);
+    deallocate(client_context);
     // TODO: move the following executions to server side
     persist_database();
     free_database();
@@ -918,15 +901,8 @@ void handle_client(int client_socket) {
     message recv_message;
 
     // create the client context here
-    ClientContext* client_context = NULL;
-    client_context = malloc(sizeof(ClientContext));
-    // TODO: change for multiple clients later
-    client_context->chandle_slots = HANDLE_MAX_SIZE;
-    // TODO: change for multiple clients later
-    client_context->chandles_in_use = 0;
-    // TODO: change allocated size for chandle_table for multiple user later
-    client_context->chandle_table = malloc(HANDLE_MAX_SIZE * sizeof(GeneralizedColumnHandle));
-
+    ClientContext* client_context;
+    allocate(&client_context, CONTEXT_CAPACIRY);
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
     // 2. Handle request if appropriate
@@ -935,7 +911,7 @@ void handle_client(int client_socket) {
     do {
         length = recv(client_socket, &recv_message, sizeof(message), 0);
         if (length < 0) {
-            log_info("Client connection closed!\n");
+            log_err("Client connection closed!\n");
             return;
         } else if (length == 0) {
             done = 1;
@@ -980,21 +956,7 @@ void handle_client(int client_socket) {
         }
     } while (!done);
 
-    // free client context
-    for (int i = 0; i < client_context->chandles_in_use; i++) {
-        // TODO: check whether to free result or column
-        if (client_context->chandle_table[i].generalized_column.column_type == RESULT) {
-            free(client_context->chandle_table[i].generalized_column.column_pointer.result->payload);
-            free(client_context->chandle_table[i].generalized_column.column_pointer.result);
-        }
-        // TODO: check how to free column
-        else if (client_context->chandle_table[i].generalized_column.column_type == COLUMN) {
-            free(client_context->chandle_table[i].generalized_column.column_pointer.column->data);
-            free(client_context->chandle_table[i].generalized_column.column_pointer.column);
-        }
-    }
-    free(client_context->chandle_table);
-    free(client_context);
+    deallocate(client_context);
 
     log_info("Connection closed at socket %d!\n", client_socket);
     close(client_socket);

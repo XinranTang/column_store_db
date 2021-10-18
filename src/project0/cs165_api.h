@@ -32,7 +32,6 @@ SOFTWARE.
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
-#define CONTEXT_CAPACIRY 10
 #define MAX_COLUMN_PATH 256
 /**
  * EXTRA
@@ -166,18 +165,17 @@ typedef struct GeneralizedColumn {
  * used to refer to a column in our client context
  */
 
-typedef struct GeneralizedColumnHandle { // bucket
+typedef struct GeneralizedColumnHandle {
     char name[HANDLE_MAX_SIZE]; // key
-    GeneralizedColumn generalized_column; // value TODO: check if freed or not
-    struct GeneralizedColumnHandle *next;
+    GeneralizedColumn generalized_column; // value
 } GeneralizedColumnHandle;
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
-typedef struct ClientContext { // hashtable
-    GeneralizedColumnHandle** chandle_table;
-    int chandles_in_use;// hashtable->length
-    int chandle_slots; // hashtable->size
+typedef struct ClientContext {
+    GeneralizedColumnHandle* chandle_table;
+    int chandles_in_use;
+    int chandle_slots;
 } ClientContext;
 
 /**

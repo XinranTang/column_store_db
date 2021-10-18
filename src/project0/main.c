@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <string.h>
 #include "hash_table.h"
 
 // This is where you can implement your own tests for the hash table
@@ -11,30 +11,35 @@ int main(void) {
   int size = 10;
   allocate(&ht, size);
 
-  int key = 0;
+  char key[4];
+  strcpy(key, "a-1");
   int value = -1;
 
   put(ht, key, value);
+  put(ht, "a0",0);
+  put(ht,"a100",100);
+  put(ht,"a-1001",-1001);
+  // int num_values = 1;
 
-  int num_values = 1;
 
-  valType* values = malloc(sizeof(valType));
+  valType values = get(ht, key);
+  // int num_results = 0;
+  printf("value is %d \n", values);
+  values = get(ht,"a0");
+  // int num_results = 0;
+  printf("value is %d \n", values);
+ values = get(ht, "a-1001");
+  // int num_results = 0;
+  printf("value is %d \n", values);
+  values = get(ht, "a100");
+  // int num_results = 0;
+  printf("value is %d \n", values);
+  // free(values);
 
-  int num_results = 0;
-
-  get(ht, key, values, num_values, &num_results);
-  if (num_results > num_values) {
-    values = realloc(values, num_results * sizeof(valType));
-    get(ht, 0, values, num_values, &num_results);
-  }
-
-  for (int i = 0; i < num_results; i++) {
-    printf("value %d is %d \n", i, values[i]);
-  }
-  free(values);
-
-  erase(ht, 0);
-
+  erase(ht, "a-1");
+ values = get(ht, "a-1");
+  // int num_results = 0;
+  printf("value is %d \n", values);
   deallocate(ht);
   return 0;
 }

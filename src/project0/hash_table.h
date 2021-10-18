@@ -1,26 +1,26 @@
 #ifndef CS165_HASH_TABLE // This is a header guard. It prevents the header from being included more than once.
 #define CS165_HASH_TABLE  
 
+typedef char* keyType;
+typedef int valType;
 // define the linked list as entryies in hashtable
 typedef struct bucket{
-    int key;
-    int value;
+    keyType key;
+    valType value;
     struct bucket *next;
 } bucket;
 
 typedef struct hashtable {
 // define the components of the hash table here (e.g. the array, bookkeeping for number of elements, etc)
+    int length;
     int size;
-    int factor;
-    struct bucket *entries;
+    struct bucket** entries;
 } hashtable;
 
-typedef int keyType;
-typedef int valType;
 
-int allocate(hashtable** ht, int size);
+int allocate(hashtable** ht, size_t size);
 int put(hashtable* ht, keyType key, valType value);
-int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_results);
+valType get(hashtable* ht, keyType key);
 int erase(hashtable* ht, keyType key);
 int deallocate(hashtable* ht);
 
