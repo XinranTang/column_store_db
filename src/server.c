@@ -410,16 +410,17 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                 if (agg_type == AVG) {
                     result->data_type = FLOAT;
 
-                    float* result_data = malloc(1 * sizeof(float));
-                    *result_data = 0.0;
+                    long result_data = 0;
+                    float* avg_result = malloc(1 * sizeof(float));
                     long* payload = (long*)gc1->column_pointer.result->payload;
                     for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
-                        *result_data += payload[i];
+                        result_data += payload[i];
+                        // printf("Result %f\n",*result_data);
                     }
-                    *result_data = *result_data / gc1->column_pointer.result->num_tuples;
-                    result->payload = result_data;
+                    *avg_result = result_data * 1.0 / gc1->column_pointer.result->num_tuples;
+                    result->payload = avg_result;
                     result->num_tuples = 1;
-                                    //printf("Result %f\n",*result_data);
+                                    // printf("Result %f\n",*result_data);
                 } else { // agg_type == SUM
                     result->data_type = LONG;
                     
@@ -480,9 +481,9 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                         int* payload1 = data1->payload;
                         int* payload2 = data2->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++) {
-                          //  printf("%d is AGG TYPE\n",agg_type);
+                        //    printf("%d is AGG TYPE\n",agg_type);
                             payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
-                          //  printf( "--%d %d %ld\n", payload1[i] , payload2[i], payload[i]);
+                        //    printf( "--%d %d %ld\n", payload1[i] , payload2[i], payload[i]);
                         }
                         result->num_tuples = data1->num_tuples;
                         result->data_type = LONG;
