@@ -42,7 +42,7 @@ int connect_client() {
     int len;
     struct sockaddr_un remote;
 
-    log_info("-- Attempting to connect...\n");
+    // log_info("-- Attempting to connect...\n");
 
     if ((client_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         log_err("L%d: Failed to create socket.\n", __LINE__);
@@ -53,11 +53,11 @@ int connect_client() {
     strncpy(remote.sun_path, SOCK_PATH, strlen(SOCK_PATH) + 1);
     len = strlen(remote.sun_path) + sizeof(remote.sun_family) + 1;
     if (connect(client_socket, (struct sockaddr *)&remote, len) == -1) {
-        log_err("client connect failed: ");
+        log_err("client connect failed: \n");
         return -1;
     }
 
-    log_info("-- Client connected at socket: %d.\n", client_socket);
+    // log_info("-- Client connected at socket: %d.\n", client_socket);
     return client_socket;
 }
 
@@ -112,13 +112,13 @@ int main(void)
         if (strncmp(read_buffer, "print", 5) == 0) {
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message header.");
+                log_err("Failed to send message header.\n");
                 exit(1);
             }
 
             // Send the payload (query) to server
             if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
-                log_err("Failed to send query payload.");
+                log_err("Failed to send query payload.\n");
                 exit(1);
             }
 
@@ -152,13 +152,13 @@ int main(void)
             // printf("received 2\n");
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message header.");
+                log_err("Failed to send message header.\n");
                 exit(1);
             }
 
             // Send the payload (query) to server
             if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
-                log_err("Failed to send query payload.");
+                log_err("Failed to send query payload.\n");
                 exit(1);
             }
 
@@ -179,10 +179,10 @@ int main(void)
             }
             else {
                 if (len < 0) {
-                    log_err("Failed to receive message.\n");
+                    // log_err("Failed to receive message.\n");
                 }
                 else {
-		            log_info("-- Server closed connection\n");
+		            // log_info("-- Server closed connection\n");
 		        }
                 exit(1);
             }
