@@ -64,7 +64,6 @@ Status create_db(const char* db_name) {
 		// ret_status.error_message = "Database already exiests.";
 		// return ret_status;
 		persist_database();
-		
 		free_database();
 	}
 
