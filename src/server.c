@@ -842,7 +842,7 @@ void execute_shutdown(ClientContext* client_context) {
     persist_database();
     free_database();
     // TODO: send message to client side
-    exit(1);
+    exit(0);
 }
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
