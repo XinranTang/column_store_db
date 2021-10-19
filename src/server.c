@@ -121,83 +121,121 @@ void execute_insert(DbOperator* query, message* send_message) {
 }
 
 void execute_load(DbOperator* query, message* send_message) {
-    // load data from file
-    FILE* fp = fopen(query->operator_fields.load_operator.file_name, "r");
-    
-    // if file not exists
-    if (!fp) {
-        cs165_log(stdout, "Cannot open file.\n");
-        // cs165_log(stdout,query->operator_fields.load_operator.file_name );
-        send_message->status = FILE_NOT_FOUND;
-        return;
-    }
-    // count how many lines to load
-    int ch, number_lines = 0;
-    do {
-        ch = fgetc(fp);
-        if (ch == '\n') number_lines++;
-    }while (ch != EOF);
-    if(ch != '\n' && number_lines != 0) number_lines++;
-    fclose(fp);
+    message load_message_header;
+    message load_recv_message;
 
-    // read header metadata
-    fp = fopen(query->operator_fields.load_operator.file_name, "r");
-    // buffer to store data from file
-    char buffer[DEFAULT_QUERY_BUFFER_SIZE];
-    // read file
-    fgets(buffer, DEFAULT_QUERY_BUFFER_SIZE, fp);
-    // header file stores the database metadata
-    char* metadata = strtok(buffer, ",");
-    char* db_name = strtok(metadata, ".");
-    char* table_name = strtok(NULL, ".");
-    // check data schema
-    if (!db_name || !table_name) {
-        cs165_log(stdout, "Incorrect data schema.\n");
-        send_message->status = INCORRECT_FORMAT;
-    }
-    // find the table for the load file
-    if (strcmp(db_name, current_db->name) != 0) {
-        cs165_log(stdout, "Cannot find database.\n");
-        send_message->status = OBJECT_NOT_FOUND;
+    // file_name is assigned to payload
+    load_message_header.status = OK_WAIT_FOR_RESPONSE;
+    load_message_header.payload = malloc(strlen(query->operator_fields.load_operator.file_name) + 1);
+    strcpy(load_message_header.payload, query->operator_fields.load_operator.file_name);
+    load_message_header.length = strlen(load_message_header.payload);
+    // send load message header to client
+    if (send(query->client_fd, &(load_message_header), sizeof(message), 0)== -1) {
+        free(load_message_header.payload);
+        send_message->status = EXECUTION_ERROR;
         return;
     }
-    Table* current_table = lookup_table(table_name);
-    if (!current_table) {
-        send_message->status = OBJECT_NOT_FOUND;
+    printf("%s\n",load_message_header.payload);
+    // send load message payload to client
+    if (send(query->client_fd, load_message_header.payload, load_message_header.length, 0)== -1) {
+        free(load_message_header.payload);
+        send_message->status = EXECUTION_ERROR;
         return;
     }
-    // set table length capacity for current table
-    current_table->table_length_capacity = (number_lines - 1) * 2;
-    for (size_t i = 0; i < current_table->col_count; i++) {
-        if (map_column(current_table, &current_table->columns[i]) == -1) {
-            send_message->status = EXECUTION_ERROR;
+    free(load_message_header.payload);
+
+    // start receiving data from the client
+    char meta_buffer[DEFAULT_QUERY_BUFFER_SIZE];
+    // receive load schema: first line in load file
+    // TODO: only handling one table for one file
+    int len = 0;
+    if ((len = recv(query->client_fd, &(load_recv_message), sizeof(message), 0)) > 0) {
+        if (load_recv_message.status != OK_WAIT_FOR_RESPONSE) {
+            cs165_log(stdout, "Error on the client side. Return.\n");
+            send_message->status = OBJECT_NOT_FOUND;
             return;
         }
-    }
-    // TODO: match column pointers with column names in header
-    //
-    // load data from file and insert them into current database
-    size_t row = 0;
-    size_t column = 0;
-    // loop through each row in the file
-    while (fgets(buffer, DEFAULT_QUERY_BUFFER_SIZE, fp)) {
-        row++;
-        current_table->table_length++;
-        column = 0;
+
+        if ((len = recv(query->client_fd, &(meta_buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0) {
+            char* metadata = strtok(meta_buffer, ",");
+            char* db_name = strtok(metadata, ".");
+            char* table_name = strtok(NULL, ".");
         
-        char* data =strtok(buffer, ",");
-        while (data) {
-            current_table->columns[column].data[row-1] = atoi(data);
-            data = strtok(NULL, ",");
-            column++;
+            if (!db_name || !table_name) {
+            // check data schema
+                cs165_log(stdout, "Incorrect data schema.\n");
+                send_message->status = OBJECT_NOT_FOUND;
+                load_message_header.status = OBJECT_NOT_FOUND;
+                // TODO: have not checked if send fails
+                send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+                return;
+            }
+            // find the table for the load file
+            if (strcmp(db_name, current_db->name) != 0) {
+                cs165_log(stdout, "Cannot find database.\n");
+                send_message->status = OBJECT_NOT_FOUND;
+                load_message_header.status = OBJECT_NOT_FOUND;
+                // TODO: have not checked if send fails
+                send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+                return;
+            }
+            Table* current_table = lookup_table(table_name);
+            if (!current_table) {
+                send_message->status = OBJECT_NOT_FOUND;
+                load_message_header.status = OBJECT_NOT_FOUND;
+                // TODO: have not checked if send fails
+                send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+                return;
+            }
+            
+            // receive number_lines from client
+            size_t number_lines;
+            load_message_header.status = OK_WAIT_FOR_RESPONSE;
+            send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+            recv(query->client_fd, &(number_lines), sizeof(size_t), 0);
+            printf("Number of lines to load: %ld", number_lines);
+            // set table length capacity for current table
+            current_table->table_length_capacity = (number_lines - 1) * 2;
+            for (size_t i = 0; i < current_table->col_count; i++) {
+                if (map_column(current_table, &current_table->columns[i]) == -1) {
+                    send_message->status = EXECUTION_ERROR;
+                    load_message_header.status = EXECUTION_ERROR;
+                    send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+                    return;
+                }
+            }
+            load_message_header.status = OK_WAIT_FOR_RESPONSE;
+            send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
+
+            char buffer[DEFAULT_QUERY_BUFFER_SIZE];
+            size_t column = 0;
+            size_t row = 0;
+            // start receiving data body from the client
+            recv(query->client_fd, &(load_recv_message), sizeof(message), 0);
+            while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0) {
+                row++;
+                current_table->table_length++;
+                column = 0;
+                    // printf("%ld %ld\n",row, number_lines);                
+                char* data =strtok(buffer, ",");
+                while (data) {
+                    current_table->columns[column].data[row-1] = atoi(data);
+                    data = strtok(NULL, ",");
+                    column++;
+                }
+                recv(query->client_fd, &(load_recv_message), sizeof(message), 0);
+                if (load_recv_message.status == OK_DONE) break;
+            }
+            // set length of column
+            for (size_t i = 0; i < current_table->col_count; i++) {
+                current_table->columns[i].length = current_table->table_length;
+                // syncing_column(&current_table->columns[i], current_table);
+            }
+            load_message_header.status = OK_DONE;
+            send(query->client_fd, &load_message_header, sizeof(message), 0);
         }
     }
-    fclose(fp);
-    // set length of column
-    for (size_t i = 0; i < current_table->col_count; i++) {
-        current_table->columns[i].length = current_table->table_length;
-        // syncing_column(&current_table->columns[i], current_table);
-    }
+    
     send_message->status = OK_DONE;
 }
 

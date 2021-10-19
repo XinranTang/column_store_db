@@ -146,9 +146,85 @@ int main(void)
                     }
                 }
             }
-        }
+        } else if (strncmp(read_buffer, "load", 4) == 0) {
+            // Send the message_header, which tells server payload size
+            if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
+                log_err("Failed to send message header.\n");
+                exit(1);
+            }
 
-        else if (send_message.length > 1) {
+            // Send the payload (query) to server
+            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
+                log_err("Failed to send query payload.\n");
+                exit(1);
+            }
+            // Always wait for server response (even if it is just an OK message)
+            if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
+                if (recv_message.status == OK_WAIT_FOR_RESPONSE) {
+                    char* file_name = malloc((recv_message.length+1) * sizeof(char));
+                    recv(client_socket, file_name, recv_message.length, 0);
+                    file_name[recv_message.length] = '\0';
+                    // printf("%s\n",file_name);
+                    FILE* fp = fopen(file_name, "r");
+                    
+                    // if file not exists
+                    if (!fp) {
+                        cs165_log(stdout, "Cannot open file.\n");
+                        free(file_name);
+                        send_message.status = FILE_NOT_FOUND;
+                        send(client_socket, &(send_message), sizeof(message), 0);
+                        exit(1);
+                    }
+                    // count how many lines to load
+                    int ch = 0;
+                    size_t number_lines;
+                    number_lines = 0;
+                    do {
+                        ch = fgetc(fp);
+                        if (ch == '\n') number_lines++;
+                    } while (ch != EOF);
+                    if(ch != '\n' && number_lines != 0) number_lines++;
+                    fclose(fp);
+
+                    // start sending file data
+                    send_message.status = OK_WAIT_FOR_RESPONSE;
+                    send(client_socket, &(send_message), sizeof(message), 0);
+                    // read header metadata
+                    fp = fopen(file_name, "r");
+                    free(file_name);
+                    // buffer to store data from file
+                    char buffer[DEFAULT_STDIN_BUFFER_SIZE];
+                    // read file
+                    fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp);
+                    send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
+
+                    if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
+                        if (recv_message.status == OK_WAIT_FOR_RESPONSE) {
+                            send(client_socket, &number_lines, sizeof(size_t), 0);
+                            recv(client_socket, &(recv_message), sizeof(message), 0);
+                            if (recv_message.status == OK_WAIT_FOR_RESPONSE) {
+                                // TODO: match column pointers with column names in header
+                                //
+                                // load data from file and insert them into current database
+                                
+                                // loop through each row in the file
+                                while (fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp)) {
+                                    send_message.status = OK_WAIT_FOR_RESPONSE;
+                                    send(client_socket,&send_message, sizeof(message),0);
+                                    send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
+                                }
+                                fclose(fp);
+                                send_message.status = OK_DONE;
+                                send(client_socket,&send_message, sizeof(message),0);
+                            }
+                        } 
+                    } else {
+                        log_err("Failed to receive message header.\n");
+                        exit(1);
+                    }
+                }
+            }
+        } else if (send_message.length > 1) {
             // printf("received 2\n");
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
