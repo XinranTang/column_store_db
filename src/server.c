@@ -209,8 +209,11 @@ void execute_load(DbOperator* query, message* send_message) {
             size_t column = 0;
             size_t row = 0;
             // start receiving data body from the client
-            recv(query->client_fd, &(load_recv_message), sizeof(message), 0);
             while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0) {
+                if ((strcmp(buffer, "break")) == 0) {
+                    printf("break:%s", buffer);
+                    break;
+                }
                 row++;
                 current_table->table_length++;
                 column = 0;              
@@ -220,8 +223,6 @@ void execute_load(DbOperator* query, message* send_message) {
                     data = strtok(NULL, ",");
                     column++;
                 }
-                recv(query->client_fd, &(load_recv_message), sizeof(message), 0);
-                if (load_recv_message.status == OK_DONE) break;
             }
             // set length of column
             for (size_t i = 0; i < current_table->col_count; i++) {

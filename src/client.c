@@ -37,6 +37,7 @@ machine please look into this as a a source of error. */
  * Returns a valid client socket fd on success, else -1 on failure.
  *
  **/
+
 int connect_client() {
     int client_socket;
     int len;
@@ -209,12 +210,11 @@ int main(void)
                                 // loop through each row in the file
                                 while (fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp)) {
                                     send_message.status = OK_WAIT_FOR_RESPONSE;
-                                    send(client_socket,&send_message, sizeof(message),0);
                                     send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
                                 }
                                 fclose(fp);
-                                send_message.status = OK_DONE;
-                                send(client_socket,&send_message, sizeof(message),0);
+                                strcpy(buffer, "break");
+                                send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
                             }
                         } 
                     } else {
