@@ -94,7 +94,6 @@ void execute_insert(DbOperator* query, message* send_message) {
             // sync and unmap before expand capacity
             if (map_column(insert_table, &insert_table->columns[i]) == -1) {
                 cs165_log(stdout, "Memory mapping failed.\n");
-                //printf("Memory mapping failed.\n");
                 send_message->status = EXECUTION_ERROR;
                 return;
             }
@@ -106,7 +105,7 @@ void execute_insert(DbOperator* query, message* send_message) {
         send_message->status = OBJECT_NOT_FOUND;
         return;
     }
-    // printf("Now inserting insert_table->col_count %ld \n",insert_table->col_count);
+
     for (size_t i = 0; i < insert_table->col_count; i++) {
         Column* current_column = &(insert_table->columns[i]);
         // current_column->data = realloc(current_column, insert_table->table_length * sizeof(int));
@@ -114,13 +113,13 @@ void execute_insert(DbOperator* query, message* send_message) {
         // syncing_column(current_column, insert_table);
         // increase the length of current_column
         current_column->length++;
-        // printf("column length after insert: %ld\n",current_column->length);
     }
     
     send_message->status = OK_DONE;
 }
 
 void execute_load(DbOperator* query, message* send_message) {
+
     message load_message_header;
     message load_recv_message;
 
@@ -135,7 +134,6 @@ void execute_load(DbOperator* query, message* send_message) {
         send_message->status = EXECUTION_ERROR;
         return;
     }
-    printf("%s\n",load_message_header.payload);
     // send load message payload to client
     if (send(query->client_fd, load_message_header.payload, load_message_header.length, 0)== -1) {
         free(load_message_header.payload);
@@ -215,8 +213,7 @@ void execute_load(DbOperator* query, message* send_message) {
             while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0) {
                 row++;
                 current_table->table_length++;
-                column = 0;
-                    // printf("%ld %ld\n",row, number_lines);                
+                column = 0;              
                 char* data =strtok(buffer, ",");
                 while (data) {
                     current_table->columns[column].data[row-1] = atoi(data);
@@ -240,8 +237,6 @@ void execute_load(DbOperator* query, message* send_message) {
 }
 
 void execute_select(DbOperator* query, message* send_message) {
-    //printf("execute_select %s %s\n",query->operator_fields.select_operator.value_vector,query->operator_fields.select_operator.position_vector);
-
     if (query->operator_fields.select_operator.select_type == TWO_COLUMN) {
         
         Result* position_vector = lookup_variables(NULL, NULL, NULL, query->operator_fields.select_operator.position_vector, query->context)->column_pointer.result;
@@ -252,7 +247,6 @@ void execute_select(DbOperator* query, message* send_message) {
             send_message->status = INCORRECT_FORMAT;
         } else {
             if (value_vector->data_type == INT) {
-                                //printf("INT SELECT\n");
 // map context file
                 size_t* select_data = malloc(value_vector->num_tuples * sizeof(size_t));
                 
@@ -270,12 +264,7 @@ void execute_select(DbOperator* query, message* send_message) {
                 result->num_tuples = index;
                 result->payload = select_data;
                 add_context(result, client_context, query->operator_fields.select_operator.intermediate);
-                //printf("Index after select %d for low %d high %d \n", index, low, high);
-                //for (size_t i = 0; i < index; i++) {
-                //    printf("-%d- ", select_data[i]);
-                //}
             } else if (value_vector->data_type == LONG) {
-                //printf("LONG SELECT\n");
                 // map context file
                 size_t* select_data = malloc(value_vector->num_tuples * sizeof(size_t));
                 
@@ -283,7 +272,6 @@ void execute_select(DbOperator* query, message* send_message) {
                 size_t* positions = position_vector->payload;
                 long* values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++) {
-                    //printf("%ld ->",values[i]);
                     if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
                 }
 
@@ -294,10 +282,6 @@ void execute_select(DbOperator* query, message* send_message) {
                 result->num_tuples = index;
                 result->payload = select_data;
                 add_context(result, client_context, query->operator_fields.select_operator.intermediate);
-                //printf("Index after select %ld for low %d high %d \n", index, low, high);
-                //for (size_t i = 0; i < index; i++) {
-                //    printf("-%ld-\n", select_data[i]);
-                //}
             } else {
                 // map context file
                 size_t* select_data = malloc(value_vector->num_tuples * sizeof(size_t));
@@ -315,10 +299,6 @@ void execute_select(DbOperator* query, message* send_message) {
                 result->num_tuples = index;
                 result->payload = select_data;
                 add_context(result, client_context, query->operator_fields.select_operator.intermediate);
-                //printf("Index after select %d for low %d high %d \n", index, low, high);
-                //    for (size_t i = 0; i < index; i++) {
-       // printf("-%f- ", select_data[i]);
-    //}
             }
         }
     } else {
@@ -341,7 +321,6 @@ void execute_select(DbOperator* query, message* send_message) {
         result->num_tuples = index;
         result->payload = select_data;
         add_context(result, client_context, query->operator_fields.select_operator.intermediate);
-        //printf("Index after select %d for low %d high %d \n", index, low, high);
     }
    
 
@@ -359,7 +338,6 @@ void execute_fetch(DbOperator* query, message* send_message) {
     ClientContext* client_context = query->context;
    
     GeneralizedColumn* generalized_column = lookup_variables(NULL, NULL, NULL, query->operator_fields.fetch_operator.positions, client_context);
- //printf("Positions name for fetch %s with target %s", client_context->chandle_table[i].name, query->operator_fields.fetch_operator.positions);
     positions = generalized_column->column_pointer.result->payload;
     positions_len = generalized_column->column_pointer.result->num_tuples;
     
@@ -373,11 +351,7 @@ void execute_fetch(DbOperator* query, message* send_message) {
     // allocate memory for context file
 	int* fetch_data = malloc(positions_len * sizeof(int));
     // fetch data
-    //printf("Column name for fetch: %s \n", column->name);
-    
     for (size_t i = 0; i < positions_len; i++) {
-        //printf("position=%ld= \n", positions[i]);
-    
         fetch_data[i] = column->data[positions[i]];
     }
     Result* result = malloc(sizeof(Result));
@@ -385,9 +359,6 @@ void execute_fetch(DbOperator* query, message* send_message) {
     result->num_tuples = positions_len;
     result->payload = fetch_data; 
     add_context(result, client_context, query->operator_fields.fetch_operator.intermediate);
-//     for (size_t i = 0; i < result->num_tuples; i++) {
-//       printf("~%d~ ", fetch_data[i]);
-//    }
     send_message->status = OK_DONE;
 }
 
@@ -395,7 +366,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
     ClientContext* client_context = query->context;
     AggregateType agg_type = query->operator_fields.aggregate_operator.aggregate_type;
     Result* result = malloc(sizeof(Result));
-    //printf("Type Number in execute_aggregate: %d\n", query->operator_fields.aggregate_operator.aggregate_type);
     if (agg_type == SUM || agg_type == AVG) {
         GeneralizedColumn* gc1 = query->operator_fields.aggregate_operator.gc1;
         if (gc1->column_type == RESULT) { // result
@@ -412,7 +382,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                 if (agg_type == AVG) *result_data = *result_data / gc1->column_pointer.result->num_tuples;
                 result->payload = result_data;
                 result->num_tuples = 1;
-                //printf("Result %f\n",*result_data);
             } else if (gc1->column_pointer.result->data_type == INT) {
 
                 if (agg_type == AVG) {
@@ -439,26 +408,24 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                     }
                     result->payload = result_data;
                     result->num_tuples = 1;
-                                    // printf("Result %ld\n",*result_data);
                 }
 
             } else { // LONG
                 result->data_type = LONG;
 
                 if (agg_type == AVG) {
-                    result->data_type = FLOAT;
+                    result->data_type = DOUBLE;
 
                     long result_data = 0;
-                    float* avg_result = malloc(1 * sizeof(float));
+                    double* avg_result = malloc(1 * sizeof(double));
                     long* payload = (long*)gc1->column_pointer.result->payload;
                     for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++) {
                         result_data += payload[i];
-                        // printf("Result %f\n",*result_data);
                     }
-                    *avg_result = result_data * 1.0 / gc1->column_pointer.result->num_tuples;
+                    *avg_result = result_data * 1.0 / (1000 * gc1->column_pointer.result->num_tuples);
+                    *avg_result *= 1000;
                     result->payload = avg_result;
                     result->num_tuples = 1;
-                                    // printf("Result %f\n",*result_data);
                 } else { // agg_type == SUM
                     result->data_type = LONG;
                     
@@ -470,7 +437,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                     }
                     result->payload = result_data;
                     result->num_tuples = 1;
-                                   // printf("Result %ld\n",*result_data);
                 }
 
             }
@@ -486,19 +452,16 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                 *result_data = *result_data / gc1->column_pointer.column->length;
                 result->payload = result_data;
                 result->num_tuples = 1;
-                               // printf("Result %f\n",*result_data);
             } else { // agg_type == SUM
                 result->data_type = LONG;
                 
                 long* result_data = malloc(1 * sizeof(long));
                 *result_data = 0;
                 for (size_t i = 0; i < gc1->column_pointer.column->length; i++) {
-                    // printf("-%d- ",gc1->column_pointer.column->data[i]);
                     *result_data += gc1->column_pointer.column->data[i];
                 }
                 result->payload = result_data;
                 result->num_tuples = 1;
-                              //  printf("Result %ld\n",*result_data);
             }
         }
     } else if (agg_type == ADD || agg_type == SUB) {
@@ -519,9 +482,7 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                         int* payload1 = data1->payload;
                         int* payload2 = data2->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++) {
-                        //    printf("%d is AGG TYPE\n",agg_type);
                             payload[i] = agg_type == ADD ? payload1[i] + payload2[i] : payload1[i] - payload2[i];
-                        //    printf( "--%d %d %ld\n", payload1[i] , payload2[i], payload[i]);
                         }
                         result->num_tuples = data1->num_tuples;
                         result->data_type = LONG;
@@ -732,7 +693,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                     result->data_type = INT;
                     result->payload = result_data;
                     result->num_tuples = 1;
-                                   // printf("Result %d\n",*result_data);
                 } else if (data1->data_type == LONG) {
                     long* result_data = malloc(1 * sizeof(long));
                     if (agg_type == MAX) {
@@ -751,7 +711,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                     result->data_type = LONG;
                     result->payload = result_data;
                     result->num_tuples = 1;
-                                //    printf("Result %ld\n",*result_data);
                 } else { // float
                     float* result_data = malloc(1 * sizeof(float));
                     if (agg_type == MAX) {
@@ -766,7 +725,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                         for (size_t i = 0; i < data1->num_tuples; i++) {
                             if (payload[i] < *result_data) *result_data = payload[i];
                         }
-                                     //   printf("Result %f\n",*result_data);
                     }
                     result->data_type = FLOAT;
                     result->payload = result_data;
@@ -791,7 +749,6 @@ void execute_aggregate(DbOperator* query, message* send_message) {
                 result->data_type = INT;
                 result->payload = result_data;
                 result->num_tuples = 1;
-                              //  printf("Result %d\n",*result_data);
             }
         } else { // 2 generalized columns
 
@@ -803,12 +760,10 @@ void execute_aggregate(DbOperator* query, message* send_message) {
         free(result);
         return;
     }
-    //printf("Intermediate %s", query->operator_fields.aggregate_operator.intermediate);
     add_context(result, client_context, query->operator_fields.aggregate_operator.intermediate);
 }
 
 void execute_print(DbOperator* query, message* send_message) {
-    // printf("length for print columns %ld", query->operator_fields.print_operator.number_intermediates);
     // find specified positions vector in client context
     ClientContext* client_context = query->context;
     void* print_data;
@@ -816,9 +771,6 @@ void execute_print(DbOperator* query, message* send_message) {
     DataType data_type;
     Result** results = malloc(query->operator_fields.print_operator.number_intermediates * sizeof(Result*));
     char** intermediates = query->operator_fields.print_operator.intermediates;
-        //     for (size_t i = 0;i<query->operator_fields.print_operator.number_intermediates;i++){
-        //     // printf("-%s-",intermediates[i]);
-        // }
     for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
         char* intermediate = intermediates[j];
         GeneralizedColumn* generalized_column = lookup_variables(NULL, NULL, NULL, intermediate, client_context);
@@ -826,56 +778,51 @@ void execute_print(DbOperator* query, message* send_message) {
     }
     print_len = results[0]->num_tuples;
     
-    message print_message_header;
     // TODO: here send_buffer/payload is not assigned
-    print_message_header.length = query->operator_fields.print_operator.number_intermediates;
-    print_message_header.status = OK_WAIT_FOR_RESPONSE;
-    send(query->client_fd, &(print_message_header), sizeof(message), 0);
+    send_message->length = query->operator_fields.print_operator.number_intermediates;
+    send_message->status = OK_WAIT_FOR_RESPONSE;
+    char break_signal[32 * send_message->length];
+    send_message->payload = break_signal;
+    send(query->client_fd, send_message, sizeof(message), 0);
     for (size_t i = 0; i < print_len; i++) {
-        char print_chars[32 * print_message_header.length];
-        
-        for (size_t k = 0; k < strlen(print_chars); k++) print_chars[k] = '\0';
+        char print_chars[32 * send_message->length];
+        memset(print_chars, '\0', 32 * send_message->length);
         for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++) {
-
-            // if (j != 0) {
-            //     char* print_chars = ",";
-            //     send(query->client_fd, print_chars, sizeof(print_chars), 0);
-            //     printf(",");
-            // }
             print_data = results[j]->payload;
             data_type = results[j]->data_type;
             if (data_type == INT) {
                 int* print_int = (int*) print_data;
-                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%d", print_int[i]);
-                else sprintf(strlen(print_chars) + print_chars, "%d", print_int[i]);
+                if (j == 0) sprintf(strlen(print_chars) + print_chars, "%d", print_int[i]);
+                else sprintf(strlen(print_chars) + print_chars, ",%d", print_int[i]);
                 // printf("int %d",print_int[i]);
             } else if (data_type == LONG) {
                 size_t* print_long = (size_t*) print_data;
-                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%ld", print_long[i]);
-                else sprintf(strlen(print_chars) + print_chars, "%ld", print_long[i]);
+                if (j == 0) sprintf(strlen(print_chars) + print_chars, "%ld", print_long[i]);
+                else sprintf(strlen(print_chars) + print_chars, ",%ld", print_long[i]);
                 // printf("long %ld",print_long[i]);
-                    // printf("long//%ld\n", print_long[i]);
             } else if (data_type == FLOAT) {
                 float* print_float = (float*) print_data;
-                if (j != 0) sprintf(strlen(print_chars) + print_chars, ",%.2f", print_float[i]);
-                else sprintf(strlen(print_chars) + print_chars, "%.2f", print_float[i]);
+                if (j == 0) sprintf(strlen(print_chars) + print_chars, "%.2f", print_float[i]);
+                else sprintf(strlen(print_chars) + print_chars, ",%.2f", print_float[i]);
                 // printf("float %.2f", print_float[i]);
-                    // printf("float//%f\n", print_float[i]);
+            } else if (data_type == DOUBLE) {
+                double* print_double = (double*) print_data;
+                if (j == 0) sprintf(strlen(print_chars) + print_chars, "%.2lf", print_double[i]);
+                else sprintf(strlen(print_chars) + print_chars, ",%.2lf", print_double[i]);
             }
 
         }
-        // printf("To send: %s\n", print_chars);
         send(query->client_fd, &print_chars, sizeof(print_chars), 0);
-        memset(print_chars, 0, strlen(print_chars));
     }
-
-    send(query->client_fd, '\0' , 0 , 0);
+    
+    memset(break_signal, '\0', 32 * send_message->length);
+    strcpy(break_signal, "break" );
+    send(query->client_fd, &break_signal, strlen(break_signal) + 1, 0);
     // Just print for checking on server side
-    send_message->status = OK_DONE;
+    send_message->status = OK_PRINT;
 }
 
 void execute_shutdown(ClientContext* client_context) {
-    // printf("execute_shutdown\n");
     // free client context
     deallocate(client_context);
     // TODO: move the following executions to server side
@@ -972,7 +919,7 @@ void handle_client(int client_socket) {
             // 2. Handle request
             //    Corresponding database operator is exsecuted over the query
             char* result = execute_DbOperator(query, &send_message);
-            
+            if (send_message.status == OK_PRINT) continue;
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
@@ -987,7 +934,6 @@ void handle_client(int client_socket) {
                 // free_database();
                 // exit(1);
             }
-
             // 4. Send response to the request
             if (send(client_socket, result, send_message.length, 0) == -1) {
                 log_err("Failed to send message.");

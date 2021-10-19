@@ -105,7 +105,6 @@ int main(void)
         // Convert to message and send the message and the
         // payload directly to the server.
         send_message.length = strlen(read_buffer);
-
         // TODO: check here
         // I don't know how to receive print() result using message struct, since it only supports char array
         // So I seperate the case that a print() query is sent from the client
@@ -124,7 +123,6 @@ int main(void)
 
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                // printf("Received 1\n");
                 if ((recv_message.status == OK_WAIT_FOR_RESPONSE) || (recv_message.status == OK_DONE)) {
                     // Calculate number of bytes in response package
                     int num_bytes = 32 * recv_message.length;
@@ -132,8 +130,8 @@ int main(void)
                     // size_t num_print = recv_message.length;
                     // Receive the payload and print it out
                     while ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        if (payload[0] == 1){
-                            // printf(" break;\n");
+                        if (strcmp(payload, "break") == 0){
+                            // printf("break: %s\n", payload);
                             break;
                         }
                         int i = 0;
@@ -143,9 +141,11 @@ int main(void)
                             }
                         }
                         printf("%s\n", payload);
+                        // memset(payload, '\0', 32 * recv_message.length);
                     }
                 }
             }
+
         } else if (strncmp(read_buffer, "load", 4) == 0) {
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
@@ -164,7 +164,6 @@ int main(void)
                     char* file_name = malloc((recv_message.length+1) * sizeof(char));
                     recv(client_socket, file_name, recv_message.length, 0);
                     file_name[recv_message.length] = '\0';
-                    // printf("%s\n",file_name);
                     FILE* fp = fopen(file_name, "r");
                     
                     // if file not exists
@@ -225,7 +224,6 @@ int main(void)
                 }
             }
         } else if (send_message.length > 1) {
-            // printf("received 2\n");
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
                 log_err("Failed to send message header.\n");
