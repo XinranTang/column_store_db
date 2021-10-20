@@ -32,7 +32,7 @@ SOFTWARE.
 // Limits the size of a name in our database to 64 characters
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
-#define CONTEXT_CAPACIRY 10
+#define CONTEXT_CAPACIRY 103
 #define MAX_COLUMN_PATH 256
 /**
  * EXTRA
@@ -168,17 +168,20 @@ typedef struct GeneralizedColumn {
  */
 
 typedef struct GeneralizedColumnHandle { // bucket
-    char name[HANDLE_MAX_SIZE]; // key
+    char name[MAX_SIZE_NAME]; // key
     GeneralizedColumn generalized_column; // value TODO: check if freed or not
     struct GeneralizedColumnHandle *next;
 } GeneralizedColumnHandle;
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
-typedef struct ClientContext { // hashtable
+
+typedef struct ClientContext { // hashtables
     GeneralizedColumnHandle** chandle_table;
     int chandles_in_use;// hashtable->length
     int chandle_slots; // hashtable->size
+    bool batch_mode; // true: in batch_mode
+    int num_batch_queries;
 } ClientContext;
 
 /**
@@ -206,6 +209,8 @@ typedef enum OperatorType {
     AGGREGATE,
     PRINT,
     SHUTDOWN,
+    BATCH_START,
+    BATCH_END,
 } OperatorType;
 
 

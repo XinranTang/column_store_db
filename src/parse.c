@@ -625,9 +625,24 @@ DbOperator* parse_print(char* query_command, message* send_message) {
     }
 }
 
+
 DbOperator* parse_shutdown(message* send_message) {
     DbOperator* dbo = malloc(sizeof(DbOperator));
     dbo->type = SHUTDOWN;
+    send_message->status = OK_DONE;
+    return dbo;
+}
+
+DbOperator* parse_batch_start(message* send_message) {
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = BATCH_START;
+    send_message->status = OK_DONE;
+    return dbo;
+}
+
+DbOperator* parse_batch_end(message* send_message) {
+    DbOperator* dbo = malloc(sizeof(DbOperator));
+    dbo->type = BATCH_END;
     send_message->status = OK_DONE;
     return dbo;
 }
@@ -722,7 +737,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         dbo = parse_print(query_command, send_message);
     } else if (strncmp(query_command, "shutdown", 8) == 0) {
         dbo = parse_shutdown(send_message);
-    } 
+    } else if (strncmp(query_command, "batch_queries", 13) == 0) {
+        dbo = parse_batch_start(send_message);
+    } else if (strncmp(query_command, "batch_execute", 13) == 0) {
+        dbo = parse_batch_end(send_message);
+    }
     if (dbo == NULL) {
         return dbo;
     }

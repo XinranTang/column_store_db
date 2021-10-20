@@ -131,7 +131,7 @@ int main(void)
                     // size_t num_print = recv_message.length;
                     // Receive the payload and print it out
                     while ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        if (strcmp(payload, "break") == 0){
+                        if (strncmp(payload, "break", 5) == 0){
                             // printf("break: %s\n", payload);
                             break;
                         }

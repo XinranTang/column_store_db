@@ -164,6 +164,9 @@ int persist_column(Table* current_table, Column* current_column) {
     // unmap column file
     char column_path[MAX_COLUMN_PATH];
 	strcpy(column_path, COLUMN_PATH);
+    strcat(column_path, current_table->name);
+    strcat(column_path, PATH_SEP);
+
 	strcat(column_path, current_column->name);
     strcat(column_path, ".data");
     if (msync(current_column->data, current_table->table_length_capacity * sizeof(int), MS_SYNC) == -1) {

@@ -64,6 +64,18 @@ Status create_db(const char* db_name) {
 		// ret_status.error_message = "Database already exiests.";
 		// return ret_status;
 		persist_database();
+
+		char column_path[MAX_COLUMN_PATH];
+		column_path[0] = 'r';
+		column_path[1] = 'm';
+		column_path[2] = ' ';
+		column_path[3] = '-';
+		column_path[4] = 'r';
+		column_path[5] = ' ';
+		strcat(column_path, COLUMN_PATH);
+
+		system(column_path);
+		
 		free_database();
 	}
 

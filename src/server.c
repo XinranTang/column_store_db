@@ -210,7 +210,7 @@ void execute_load(DbOperator* query, message* send_message) {
             size_t row = 0;
             // start receiving data body from the client
             while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0) {
-                if ((strcmp(buffer, "break")) == 0) {
+                if ((strncmp(buffer, "break", 5)) == 0) {
                     printf("break:%s", buffer);
                     break;
                 }
@@ -823,6 +823,47 @@ void execute_print(DbOperator* query, message* send_message) {
     send_message->status = OK_PRINT;
 }
 
+// TODO: check batch start
+void execute_batch_start(ClientContext* client_context, message* send_message) {
+    // set batch mode to true
+    client_context->batch_mode = true;
+    // allocate size in client context to store db operators
+    // client_context->batch_queries = malloc(HANDLE_MAX_SIZE * sizeof(DbOperator*));
+    for (size_t i = 0; i < HANDLE_MAX_SIZE; i++) {
+        // client_context->batch_queries = NULL;
+    }
+    send_message->status = OK_DONE;
+}
+
+
+// server: Thread pool, take query on the fly
+    //      queue for clients (bonus)
+// client: ClientContext
+void execute_batch_select(DbOperator* query, message* send_message) {
+    if (query->context->num_batch_queries >= HANDLE_MAX_SIZE) {
+        send_message->status = EXECUTION_ERROR;
+        return;
+    }
+    // query->context->batch_queries[query->context->num_batch_queries] = &query; // check
+    query->context->num_batch_queries++;
+    send_message->status = BATCH_WAIT;
+}
+// TODO: check batch end
+void execute_batch_end(ClientContext* client_context, message* send_message) {
+
+    for (int i = 0; i < client_context->num_batch_queries; i++) {
+            // DbOperator* operator = client_context->batch_queries[i];
+        // printf("select for %s\n", operator->operator_fields.select_operator.intermediate);
+    }
+
+    client_context->batch_mode = false;
+    for (int i = 0; i < client_context->num_batch_queries; i++) {
+        // free(client_context->batch_queries[i]); // free db operators
+    }
+    // free(client_context->batch_queries);
+    send_message->status = OK_DONE;
+}
+
 void execute_shutdown(ClientContext* client_context) {
     // free client context
     deallocate(client_context);
@@ -858,9 +899,11 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
         free(query->operator_fields.insert_operator.values);
     } else if (query && query->type == LOAD) {
         execute_load(query, send_message);
-    } else if (query && query->type == SELECT) {
+    } else if (query && query->type == SELECT && query->context->batch_mode == true) {
+        execute_batch_select(query, send_message);
+    } else if (query && query->type == SELECT && query->context->batch_mode == false) {
         execute_select(query, send_message);
-    } else if (query && query->type == FETCH) {
+    }else if (query && query->type == FETCH) {
         execute_fetch(query, send_message);
     } else if (query && query->type == AGGREGATE) {
         execute_aggregate(query, send_message);
@@ -869,6 +912,10 @@ char* execute_DbOperator(DbOperator* query, message* send_message) {
         free(query->operator_fields.print_operator.intermediates);
     } else if (query && query->type == SHUTDOWN) {
         execute_shutdown(query->context);
+    } else if (query && query->type == BATCH_START) {
+        execute_batch_start(query->context, send_message);
+    } else if (query && query->type == BATCH_END) {
+        execute_batch_end(query->context, send_message);
     }
     return "165";
 }
@@ -891,6 +938,8 @@ void handle_client(int client_socket) {
     // create the client context here
     ClientContext* client_context;
     allocate(&client_context, CONTEXT_CAPACIRY);
+    client_context->batch_mode = false;
+    client_context->num_batch_queries = 0;
     // Continually receive messages from client and execute queries.
     // 1. Parse the command
     // 2. Handle request if appropriate
@@ -920,7 +969,7 @@ void handle_client(int client_socket) {
             // 2. Handle request
             //    Corresponding database operator is exsecuted over the query
             char* result = execute_DbOperator(query, &send_message);
-            if (send_message.status == OK_PRINT) continue;
+            if (send_message.status == OK_PRINT || send_message.status == BATCH_WAIT) continue;
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
