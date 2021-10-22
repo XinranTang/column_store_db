@@ -181,8 +181,10 @@ typedef struct ClientContext { // hashtables
     int chandles_in_use;// hashtable->length
     int chandle_slots; // hashtable->size
     bool batch_mode; // true: in batch_mode
-    int num_batch_queries;
+    // TODO: handle multiple clients
+    // int num_batch_queries;
 } ClientContext;
+
 
 /**
  * comparator
@@ -319,6 +321,7 @@ typedef struct DbOperator {
     int client_fd;
     ClientContext* context;
 } DbOperator;
+
 
 // extern declares current_db as global variable without any memory assigned to it
 extern Db *current_db;
