@@ -144,12 +144,56 @@ DbOperator* parse_create_tbl(char* create_arguments, message* send_message) {
     return dbo;
 }
 
+DbOperator* parse_create_idx(char* create_arguments, message* send_message) {
+    char** create_arguments_index = &create_arguments;
+    char* token = next_token(create_arguments_index, &send_message->status);
+    char* sorted_btree = next_token(create_arguments_index, &send_message->status);
+    char* clustered = next_token(create_arguments_index, &send_message->status);
+    clustered = trim_parenthesis(clustered);
+    // not enough arguments if token is NULL
+    if (token == NULL) {
+        return NULL;
+    } else {
+        // create the database with given name
+        char* db_name = sep_token(&token, ".", &send_message->status);
+        char* table_name = sep_token(&token, ".", &send_message->status);
+        char* column_name = sep_token(&token, ".", &send_message->status);
+        // make create operator. 
+        DbOperator* dbo = malloc(sizeof(DbOperator));
+        dbo->type = CREATE;
+        dbo->operator_fields.create_operator.create_type = _INDEX;
+        dbo->operator_fields.create_operator.clustered = strcmp(clustered, "clustered") == 0;
+        dbo->operator_fields.create_operator.sorted = strcmp(sorted_btree, "sorted") == 0;
+        dbo->operator_fields.create_operator.btree = strcmp(sorted_btree, "btree") == 0;
+        // check that the database argument is the current active database
+        if (!current_db || strcmp(current_db->name, db_name) != 0) {
+            cs165_log(stdout, "query unsupported. Bad db name\n");
+            return NULL; //QUERY_UNSUPPORTED
+        }
+        // // TODO: turn the string sorted into an boolean, and check that the input is valid.
+        // bool sorted = atoi(sorted);
+        Table* current_table = lookup_table(table_name);
+        if (!current_table) {
+            cs165_log(stdout, "query unsupported. Bad table name\n");
+            return NULL;
+        }
+        Column* current_column = lookup_column(current_table, column_name);
+        if (!current_column) {
+            cs165_log(stdout, "query unsupported. Bad column name\n");
+            return NULL;
+        }
+        dbo->operator_fields.create_operator.db = current_db;
+        dbo->operator_fields.create_operator.table = current_table;
+        dbo->operator_fields.create_operator.column = current_column;
+        send_message->status = OK_DONE;
+        return dbo;
+    }
+}
+
 /**
  * This method takes in a string representing the arguments to create a database.
  * It parses those arguments, checks that they are valid, and creates a database.
  **/
-
-
 DbOperator* parse_create_db(char* create_arguments, message* send_message) {
     char** create_arguments_index = &create_arguments;
     char* token = next_token(create_arguments_index, &send_message->status);
@@ -211,6 +255,8 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
                 dbo = parse_create_tbl(tokenizer_copy, send_message);
             } else if (strcmp(token, "col") == 0) {
                 dbo = parse_create_col(tokenizer_copy, send_message);
+            } else if (strcmp(token, "idx") == 0) {
+                dbo = parse_create_idx(tokenizer_copy, send_message);
             } else {
                 send_message->status = UNKNOWN_COMMAND;
             }
@@ -707,12 +753,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     // TODO: add other queries
     } else if (strncmp(query_command, "fetch", 5) == 0) {
         query_command += 5;
-        // cs165_log(stdout, "%s, %s\n", handle, query_command);
         dbo = parse_fetch(handle, query_command, send_message);
-            // TODO: bug here !
     } else if (strncmp(query_command, "select", 6) == 0) {
         query_command += 6;
-        // cs165_log(stdout, "%s, %s\n", handle, query_command);
         dbo = parse_select(handle, query_command, send_message);
     } else if (strncmp(query_command, "avg", 3) == 0) {
         query_command += 3;

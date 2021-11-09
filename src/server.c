@@ -1,8 +1,5 @@
-////////////////////////////
-// TODO: change code to let server waiting for another client instead of shutting down
-////////////////////////////
 /** server.c
- * CS165 Fall 2018
+ * CS165 Fall 2021
  *
  * This file provides a basic unix socket implementation for a server
  * used in an interactive client-server database.
@@ -90,6 +87,22 @@ void execute_create(DbOperator *query, message *send_message)
         }
         send_message->status = OK_DONE;
     }
+    else if (query->operator_fields.create_operator.create_type == _INDEX)
+    {
+        Status create_status;
+        create_index(query->operator_fields.create_operator.table,
+                     query->operator_fields.create_operator.column,
+                     query->operator_fields.create_operator.sorted,
+                     query->operator_fields.create_operator.btree,
+                     query->operator_fields.create_operator.clustered,
+                     &create_status);
+        if (create_status.code != OK)
+        {
+            send_message->status = EXECUTION_ERROR;
+            return;
+        }
+        send_message->status = OK_DONE;
+    }
 }
 
 void execute_insert(DbOperator *query, message *send_message)
@@ -148,7 +161,7 @@ void execute_insert(DbOperator *query, message *send_message)
 
     send_message->status = OK_DONE;
 }
-
+// TODO: modify to add index
 void execute_load(DbOperator *query, message *send_message)
 {
 
@@ -181,6 +194,7 @@ void execute_load(DbOperator *query, message *send_message)
     // receive load schema: first line in load file
     // TODO: only handling one table for one file
     int len = 0;
+
     if ((len = recv(query->client_fd, &(load_recv_message), sizeof(message), 0)) > 0)
     {
         if (load_recv_message.status != OK_WAIT_FOR_RESPONSE)
@@ -251,6 +265,7 @@ void execute_load(DbOperator *query, message *send_message)
             size_t column = 0;
             size_t row = 0;
             // start receiving data body from the client
+            // start loading line by line
             while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)
             {
                 if ((strncmp(buffer, "break", 5)) == 0)
@@ -269,11 +284,40 @@ void execute_load(DbOperator *query, message *send_message)
                     column++;
                 }
             }
-            // set length of column
+            // record the primary indexed column if exists
+            size_t primary_index_column = -1;
+            // set length of column and find primary indexed column
             for (size_t i = 0; i < current_table->col_count; i++)
             {
                 current_table->columns[i].length = current_table->table_length;
+                if (current_table->columns[i].clustered)
+                {
+                    if (primary_index_column != -1)
+                    {
+                        current_table->columns[i].clustered = false;
+                    }
+                    else
+                    {
+                        primary_index_column = i;
+                    }
+                }
                 // syncing_column(&current_table->columns[i], current_table);
+            }
+            // process primary index
+            // the primary index column is sorted, and the order is propagated to the whole table
+            if (primary_index_column != -1)
+            {
+                build_primary_index(current_table, primary_index_column);
+            }
+            // process secondary indexes
+            for (size_t i = 0; i < current_table->col_count; i++)
+            {
+                if (i == primary_index_column)
+                    continue;
+                if (current_table->columns[i].btree | current_table->columns[i].sorted)
+                {
+                    build_secondary_index(current_table, &current_table->columns[i], current_table->columns[i].btree, current_table->columns[i].sorted);
+                }
             }
             load_message_header.status = OK_DONE;
             send(query->client_fd, &load_message_header, sizeof(message), 0);
@@ -414,11 +458,10 @@ void batch_execute_select(void *args)
         int low = query->operator_fields.select_operator.low;
         int high = query->operator_fields.select_operator.high;
         if (position_vector->data_type == FLOAT)
-        {        
+        {
             pthread_mutex_lock(&lock);
-                send_message->status = INCORRECT_FORMAT;
+            send_message->status = INCORRECT_FORMAT;
             pthread_mutex_unlock(&lock);
-
         }
         else
         {
@@ -1213,7 +1256,7 @@ void execute_batch_select(DbOperator *query, message *send_message)
 // TODO: check batch end
 void execute_batch_end(ClientContext *client_context, message *send_message)
 {
-    while ( tasks > done)
+    while (tasks > done)
     {
         // printf("Sleep %d %d\n", tasks, done);
         sleep(0.01); // TODO: change sleep time
@@ -1367,7 +1410,8 @@ void handle_client(int client_socket)
             char *result = execute_DbOperator(query, &send_message);
             // TODO: Check
             // free DbOperator
-            if (send_message.status != BATCH_WAIT) free(query);
+            if (send_message.status != BATCH_WAIT)
+                free(query);
             if (send_message.status == OK_PRINT)
                 continue;
             send_message.length = strlen(result);

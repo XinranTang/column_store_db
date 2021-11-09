@@ -34,6 +34,7 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 #define CONTEXT_CAPACIRY 103
 #define MAX_COLUMN_PATH 256
+
 /**
  * EXTRA
  * DataType
@@ -43,27 +44,44 @@ SOFTWARE.
  * additional types.
  **/
 
-typedef enum DataType {
-     INT,
-     LONG, // can be used to declare size_t type
-     FLOAT,
-     DOUBLE,
+typedef enum DataType
+{
+    INT,
+    LONG, // can be used to declare size_t type
+    FLOAT,
+    DOUBLE,
 } DataType;
 
 struct Comparator;
-//struct ColumnIndex;
 
-typedef struct Column {
-    char name[MAX_SIZE_NAME]; 
-    int* data;
+typedef struct ColumnIndex
+{
+    int *values;
+    size_t *indexes;
+} ColumnIndex;
+
+typedef struct BTNode
+{   
+    int num_keys;
+    bool isLeaf;
+    int *keys;
+    size_t *indexes;
+    BTNode *children;
+} BTNode;
+
+typedef struct Column
+{
+    char name[MAX_SIZE_NAME];
+    int *data;
     size_t length;
     bool sorted;
-    // You will implement column indexes later. 
-    void* index;
-    //struct ColumnIndex *index;
-    //bool clustered;
+    bool btree;
+    bool clustered;
+    // You will implement column indexes later.
+    // void *index;
+    ColumnIndex *index;
+    BTNode *btree_root;
 } Column;
-
 
 /**
  * table
@@ -79,8 +97,9 @@ typedef struct Column {
  * - table_length, the size of the columns in the table.
  **/
 
-typedef struct Table {
-    char name [MAX_SIZE_NAME];
+typedef struct Table
+{
+    char name[MAX_SIZE_NAME];
     Column *columns;
     size_t col_count;
     size_t table_length;
@@ -97,8 +116,9 @@ typedef struct Table {
  * - tables_capacity: the amount of pointers that can be held in the currently allocated memory slot
  **/
 
-typedef struct Db {
-    char name[MAX_SIZE_NAME]; 
+typedef struct Db
+{
+    char name[MAX_SIZE_NAME];
     Table *tables;
     size_t tables_size;
     size_t tables_capacity;
@@ -107,21 +127,24 @@ typedef struct Db {
 /**
  * Error codes used to indicate the outcome of an API call
  **/
-typedef enum StatusCode {
-  /* The operation completed successfully */
-  OK,
-  /* There was an error with the call. */
-  ERROR,
+typedef enum StatusCode
+{
+    /* The operation completed successfully */
+    OK,
+    /* There was an error with the call. */
+    ERROR,
 } StatusCode;
 
 // status declares an error code and associated message
-typedef struct Status {
+typedef struct Status
+{
     StatusCode code;
-    char* error_message;
+    char *error_message;
 } Status;
 
 // Defines a comparator flag between two values.
-typedef enum ComparatorType {
+typedef enum ComparatorType
+{
     NO_COMPARISON = 0,
     LESS_THAN = 1,
     GREATER_THAN = 2,
@@ -134,7 +157,8 @@ typedef enum ComparatorType {
  * Declares the type of a result column, 
  which includes the number of tuples in the result, the data type of the result, and a pointer to the result data
  */
-typedef struct Result {
+typedef struct Result
+{
     size_t num_tuples;
     DataType data_type;
     void *payload;
@@ -143,22 +167,25 @@ typedef struct Result {
 /*
  * an enum which allows us to differentiate between columns and results
  */
-typedef enum GeneralizedColumnType {
+typedef enum GeneralizedColumnType
+{
     RESULT,
     COLUMN
 } GeneralizedColumnType;
 /*
  * a union type holding either a column or a result struct
  */
-typedef union GeneralizedColumnPointer {
-    Result* result;
-    Column* column;
+typedef union GeneralizedColumnPointer
+{
+    Result *result;
+    Column *column;
 } GeneralizedColumnPointer;
 
 /*
  * unifying type holding either a column or a result
  */
-typedef struct GeneralizedColumn {
+typedef struct GeneralizedColumn
+{
     GeneralizedColumnType column_type;
     GeneralizedColumnPointer column_pointer;
 } GeneralizedColumn;
@@ -167,42 +194,45 @@ typedef struct GeneralizedColumn {
  * used to refer to a column in our client context
  */
 
-typedef struct GeneralizedColumnHandle { // bucket
-    char name[MAX_SIZE_NAME]; // key
+typedef struct GeneralizedColumnHandle
+{                                         // bucket
+    char name[MAX_SIZE_NAME];             // key
     GeneralizedColumn generalized_column; // value TODO: check if freed or not
     struct GeneralizedColumnHandle *next;
 } GeneralizedColumnHandle;
+
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
-
-typedef struct ClientContext { // hashtables
-    GeneralizedColumnHandle** chandle_table;
-    int chandles_in_use;// hashtable->length
-    int chandle_slots; // hashtable->size
-    bool batch_mode; // true: in batch_mode
+typedef struct ClientContext
+{ // hashtables
+    GeneralizedColumnHandle **chandle_table;
+    int chandles_in_use; // hashtable->length
+    int chandle_slots;   // hashtable->size
+    bool batch_mode;     // true: in batch_mode
     // TODO: handle multiple clients
     // int num_batch_queries;
 } ClientContext;
-
 
 /**
  * comparator
  * A comparator defines a comparison operation over a column. 
  **/
-typedef struct Comparator {
-    long int p_low; // used in equality and ranges.
-    long int p_high; // used in range compares. 
-    GeneralizedColumn* gen_col;
+typedef struct Comparator
+{
+    long int p_low;  // used in equality and ranges.
+    long int p_high; // used in range compares.
+    GeneralizedColumn *gen_col;
     ComparatorType type1;
     ComparatorType type2;
-    char* handle;
+    char *handle;
 } Comparator;
 
 /*
  * tells the databaase what type of operator this is
  */
-typedef enum OperatorType {
+typedef enum OperatorType
+{
     CREATE,
     INSERT,
     LOAD,
@@ -215,14 +245,16 @@ typedef enum OperatorType {
     BATCH_END,
 } OperatorType;
 
-
-typedef enum CreateType {
+typedef enum CreateType
+{
     _DB,
     _TABLE,
     _COLUMN,
+    _INDEX,
 } CreateType;
 
-typedef enum AggregateType {
+typedef enum AggregateType
+{
     AVG,
     SUM,
     ADD,
@@ -231,7 +263,8 @@ typedef enum AggregateType {
     MAX,
 } AggregateType;
 
-typedef enum SelectType {
+typedef enum SelectType
+{
     ONE_COLUMN,
     TWO_COLUMN,
 } SelectType;
@@ -243,31 +276,39 @@ typedef enum SelectType {
  * if create_type = _TABLE, the operator should create a table named <<name>> with <<col_count>> columns within db <<db>>
  * if create_type = = _COLUMN, the operator should create a column named <<name>> within table <<table>>
  */
-typedef struct CreateOperator {
-    CreateType create_type; 
-    char name[MAX_SIZE_NAME]; 
-    Db* db;
-    Table* table;
+typedef struct CreateOperator
+{
+    CreateType create_type;
+    char name[MAX_SIZE_NAME];
+    Db *db;
+    Table *table;
+    Column *column;
     int col_count;
     bool sorted;
+    bool btree;
+    bool clustered;
 } CreateOperator;
 
 /*
  * necessary fields for insertion
  */
-typedef struct InsertOperator {
-    Table* table;
-    int* values;
+typedef struct InsertOperator
+{
+    Table *table;
+    int *values;
 } InsertOperator;
+
 /*
  * necessary fields for insertion
  */
-typedef struct LoadOperator {
+typedef struct LoadOperator
+{
     char file_name[MAX_COLUMN_PATH];
 } LoadOperator;
 
-typedef struct SelectOperator {
-    Column* column;
+typedef struct SelectOperator
+{
+    Column *column;
     size_t column_length;
     char position_vector[MAX_SIZE_NAME];
     char value_vector[MAX_SIZE_NAME];
@@ -277,29 +318,33 @@ typedef struct SelectOperator {
     int high;
 } SelectOperator;
 
-typedef struct FetchOperator {
-    Column* column;
+typedef struct FetchOperator
+{
+    Column *column;
     char intermediate[MAX_SIZE_NAME];
-    char* positions;
+    char *positions;
 } FetchOperator;
 
-typedef struct PrintOperator {
-    char** intermediates;
+typedef struct PrintOperator
+{
+    char **intermediates;
     size_t number_intermediates;
 } PrintOperator;
 
-typedef struct AggregateOperator{
+typedef struct AggregateOperator
+{
     AggregateType aggregate_type;
     char intermediate[MAX_SIZE_NAME];
     int variable_number;
-    GeneralizedColumn* gc1;
-    GeneralizedColumn* gc2;
+    GeneralizedColumn *gc1;
+    GeneralizedColumn *gc2;
 } AggregateOperator;
 
 /*
  * union type holding the fields of any operator
  */
-typedef union OperatorFields {
+typedef union OperatorFields
+{
     CreateOperator create_operator;
     InsertOperator insert_operator;
     LoadOperator load_operator;
@@ -308,6 +353,7 @@ typedef union OperatorFields {
     PrintOperator print_operator;
     AggregateOperator aggregate_operator;
 } OperatorFields;
+
 /*
  * DbOperator holds the following fields:
  * type: the type of operator to perform (i.e. insert, select, ...)
@@ -315,13 +361,13 @@ typedef union OperatorFields {
  * client_fd: the file descriptor of the client that this operator will return to
  * context: the context of the operator in question. This context holds the local results of the client in question.
  */
-typedef struct DbOperator {
+typedef struct DbOperator
+{
     OperatorType type;
     OperatorFields operator_fields;
     int client_fd;
-    ClientContext* context;
+    ClientContext *context;
 } DbOperator;
-
 
 // extern declares current_db as global variable without any memory assigned to it
 extern Db *current_db;
@@ -332,17 +378,22 @@ extern Db *current_db;
  */
 Status db_startup();
 
-Status create_db(const char* db_name);
+Status create_db(const char *db_name);
 
-Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
+Table *create_table(Db *db, const char *name, size_t num_columns, Status *status);
 
-Column* create_column(Table *table, char *name, bool sorted, Status *ret_status);
+Column *create_column(Table *table, char *name, bool sorted, Status *ret_status);
+
+void create_index(Table *table, Column *column, bool sorted, bool btree, bool clustered, Status *ret_status);
+
+void build_primary_index(Table *table, size_t primary_column_index);
+
+void build_secondary_index(Table *table, Column *primary_column, bool btree, bool sorted);
 
 Status shutdown_server();
 
-char** execute_db_operator(DbOperator* query);
-void db_operator_free(DbOperator* query);
+char **execute_db_operator(DbOperator *query);
 
+void db_operator_free(DbOperator *query);
 
 #endif /* CS165_H */
-
