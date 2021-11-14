@@ -1,6 +1,7 @@
 #include "cs165_api.h"
 #include "common.h"
 #include "utils.h"
+#include "btree.h"
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>

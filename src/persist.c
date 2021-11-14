@@ -34,8 +34,18 @@ int load_database() {
         for (size_t j = 0; j < current_table->col_count; j++) {
             Column* current_column = &(current_table->columns[j]);
             fread(current_column, sizeof(Column), 1, fp);
-            
+            if ((!current_column->clustered) && (current_column->btree || current_column->sorted)) {
+                current_column->index = malloc(sizeof(ColumnIndex));
+		        current_column->index->values = malloc(current_table->table_length_capacity * sizeof(int));
+		        current_column->index->positions = malloc(current_table->table_length_capacity * sizeof(size_t));
+                fread(current_column->index, sizeof(ColumnIndex), 1, fp);
+                fread(current_column->index->values, current_table->table_length_capacity * sizeof(int), 1, fp);
+                fread(current_column->index->positions, current_table->table_length_capacity * sizeof(size_t), 1, fp);
+            }
             map_column(current_table, current_column);
+            if (current_column->btree) {
+                current_column->btree_root = load_btree(current_table->name, current_column->name);
+            }
             // printf("Column length: %s, %ld\n",current_column->name, current_column->length);
         }
     }
@@ -155,6 +165,14 @@ int persist_table(Table* current_table, FILE* fp) {
     for (size_t j = 0; j < current_table->col_count; j++) {
         Column* current_column = &(current_table->columns[j]);
         fwrite(current_column, sizeof(Column), 1, fp);
+        if ((!current_column->clustered) && (current_column->btree || current_column->sorted)) {
+            fwrite(current_column->index, sizeof(ColumnIndex), 1, fp);
+            fwrite(current_column->index->values, current_table->table_length_capacity * sizeof(int), 1, fp);
+            fwrite(current_column->index->positions, current_table->table_length_capacity * sizeof(size_t), 1, fp);
+        }
+        if (current_column->btree) {
+            persist_btree(current_column->btree_root, current_table->name, current_column->name);
+        }
     }
     
     for (size_t j = 0; j < current_table->col_count; j++) {
@@ -186,6 +204,17 @@ int persist_column(Table* current_table, Column* current_column) {
 int free_database() {
     for (size_t i = 0; i < current_db->tables_size; i++) {
         Table* current_table = &(current_db->tables[i]);
+        for (size_t j = 0; j < current_table->col_count; j++) {
+            Column* current_column = &(current_table->columns[j]);
+            if ((!current_column->clustered) && (current_column->btree || current_column->sorted)) {
+                free(current_column->index->values);
+                free(current_column->index->positions);
+                free(current_column->index);
+            }
+            if (current_column->btree) {
+                deallocate_btree(current_column->btree_root);
+            }
+        }
         free(current_table->columns);
     }
     free(current_db->tables);

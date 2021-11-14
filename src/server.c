@@ -285,27 +285,29 @@ void execute_load(DbOperator *query, message *send_message)
                 }
             }
             // record the primary indexed column if exists
-            size_t primary_index_column = -1;
+            size_t primary_index_column = 0;
+            bool flag = false;
             // set length of column and find primary indexed column
             for (size_t i = 0; i < current_table->col_count; i++)
             {
                 current_table->columns[i].length = current_table->table_length;
                 if (current_table->columns[i].clustered)
                 {
-                    if (primary_index_column != -1)
+                    if (flag)
                     {
                         current_table->columns[i].clustered = false;
                     }
                     else
                     {
                         primary_index_column = i;
+                        flag = true;
                     }
                 }
                 // syncing_column(&current_table->columns[i], current_table);
             }
             // process primary index
             // the primary index column is sorted, and the order is propagated to the whole table
-            if (primary_index_column != -1)
+            if (flag)
             {
                 build_primary_index(current_table, primary_index_column);
             }
@@ -1502,39 +1504,39 @@ int setup_server()
 //      How will you extend main to handle multiple concurrent clients?
 //      Is there a maximum number of concurrent client connections you will allow?
 //      What aspects of siloes or isolation are maintained in your design? (Think `what` is shared between `whom`?)
-int main(void)
-{
-    int db = load_database();
-    if (db < 0)
-    {
-        cs165_log(stdout, "No current database ...\n");
-    }
+// int main(void)
+// {
+//     int db = load_database();
+//     if (db < 0)
+//     {
+//         cs165_log(stdout, "No current database ...\n");
+//     }
 
-    int server_socket = setup_server();
-    if (server_socket < 0)
-    {
-        exit(1);
-    }
+//     int server_socket = setup_server();
+//     if (server_socket < 0)
+//     {
+//         exit(1);
+//     }
 
-    log_info("Waiting for a connection %d ...\n", server_socket);
+//     log_info("Waiting for a connection %d ...\n", server_socket);
 
-    struct sockaddr_un remote;
-    socklen_t t = sizeof(remote);
-    int client_socket = 0;
+//     struct sockaddr_un remote;
+//     socklen_t t = sizeof(remote);
+//     int client_socket = 0;
 
-    // TODO: handle multiple clients
-    while ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)))
-    {
-        log_info("Connection accepted.\n", server_socket);
-        handle_client(client_socket);
-    }
-    if (client_socket == -1)
-    {
-        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-        // TODO: move the following executions to server side
-        persist_database();
-        free_database();
-        exit(1);
-    }
-    return 0;
-}
+//     // TODO: handle multiple clients
+//     while ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)))
+//     {
+//         log_info("Connection accepted.\n", server_socket);
+//         handle_client(client_socket);
+//     }
+//     if (client_socket == -1)
+//     {
+//         log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+//         // TODO: move the following executions to server side
+//         persist_database();
+//         free_database();
+//         exit(1);
+//     }
+//     return 0;
+// }
