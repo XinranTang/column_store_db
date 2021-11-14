@@ -140,12 +140,11 @@ void create_index(Table *table, Column *column, bool sorted, bool btree, bool cl
 		// TODO: free column_index, values and positions
 		ColumnIndex* column_index = malloc(sizeof(ColumnIndex));
 		column_index->values = malloc(table->table_length_capacity * sizeof(int));
-		column_index->indexes = malloc(table->table_length_capacity * sizeof(size_t));
+		column_index->positions = malloc(table->table_length_capacity * sizeof(size_t));
 		column->index = column_index;
 	}
 	// set return status code and message
 	ret_status->code = OK;
-	return NULL;
 }
 
 void quick_sort(Table *table, size_t primary_column, size_t start, size_t end) {
@@ -194,15 +193,15 @@ void quick_sort_index(ColumnIndex * index, size_t start, size_t end) {
 			int tmp_val = index->values[i];
 			index->values[i] = index->values[j];
 			index->values[j] = tmp_val;
-			size_t tmp_idx = index->indexes[i];
-			index->indexes[i] = index->indexes[j];
-			index->indexes[j] = tmp_idx;
+			size_t tmp_idx = index->positions[i];
+			index->positions[i] = index->positions[j];
+			index->positions[j] = tmp_idx;
 		}
 	}
 	index->values[start] = index->values[i];
 	index->values[i] = pivot;
-	size_t tmp_idx = index->indexes[start];
-	index->indexes[start] = index->values[i];
+	size_t tmp_idx = index->positions[start];
+	index->positions[start] = index->values[i];
 	index->values[i] = tmp_idx;
 	quick_sort_index(index, start, i - 1);
 	quick_sort_index(index, i + 1, end);
@@ -216,7 +215,7 @@ void build_column_index(Column * column) {
 	ColumnIndex *index = column->index;
 	for (size_t i = 0; i < column->length; i++) {
 		index->values[i] = column->data[i];
-		index->indexes[i] = i;
+		index->positions[i] = i;
 	}
 	quick_sort_index(index, 0, column->length - 1);
 }
@@ -226,12 +225,12 @@ void build_primary_index(Table *table, size_t primary_column_index) {
 	quick_sort(table, primary_column_index, 0, table->table_length - 1);
 	if (table->columns[primary_column_index].btree) {
 		// create indexes for primary column
-		size_t *indexes = malloc(table->columns[primary_column_index].length * sizeof(size_t));
+		size_t *positions = malloc(table->columns[primary_column_index].length * sizeof(size_t));
 		for (size_t i = 0; i < table->columns[primary_column_index].length; i++) {
-			indexes[i] = i;
+			positions[i] = i;
 		}
-		table->columns[primary_column_index].btree_root = create_btree(table->columns[primary_column_index].data, indexes, table->columns[primary_column_index].length);
-		free(indexes);
+		table->columns[primary_column_index].btree_root = create_btree(table->columns[primary_column_index].data, positions, table->columns[primary_column_index].length);
+		free(positions);
 	}
 }
 
@@ -240,6 +239,6 @@ void build_secondary_index(Table *table, Column * primary_column, bool btree, bo
 	// TODO: persist indexes
 	build_column_index(primary_column);
 	if (btree) {
-		primary_column->btree_root = create_btree(primary_column->index->values, primary_column->index->indexes, primary_column->length);
+		primary_column->btree_root = create_btree(primary_column->index->values, primary_column->index->positions, primary_column->length);
 	}
 }

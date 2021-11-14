@@ -57,16 +57,16 @@ struct Comparator;
 typedef struct ColumnIndex
 {
     int *values;
-    size_t *indexes;
+    size_t *positions;
 } ColumnIndex;
 
 typedef struct BTNode
-{   
-    int num_keys;
+{
+    int num_values;
     bool isLeaf;
-    int *keys;
-    size_t *indexes;
-    BTNode *children;
+    int *values; // => values
+    size_t *positions;
+    struct BTNode **children;
 } BTNode;
 
 typedef struct Column

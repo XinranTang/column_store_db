@@ -10,6 +10,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+typedef struct SearchQueueNode
+{                                      
+    void* content;        // value TODO: check if freed or not
+    struct SearchQueueNode *next;
+    struct SearchQueueNode *prev;
+} SearchQueueNode;
+
 /**
  * trims newline characters from a string (in place)
  **/

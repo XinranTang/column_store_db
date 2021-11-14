@@ -55,6 +55,9 @@ int map_column(Table* table, Column* column) {
         mkdir(COLUMN_PATH, 0600);
     }
     // mmap column data to file
+    // TODO: map indexes
+    // column file to indexes
+    //
 	int fd;
 	int result;
     // concat column path for table

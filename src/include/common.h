@@ -20,6 +20,10 @@
 #define TABLE_PATH "/cs165/database/tables.metadata"
 #endif
 
+#ifndef BTREE_PATH
+#define BTREE_PATH "/cs165/database/btrees/"
+#endif
+
 #ifndef COLUMN_PATH
 #define COLUMN_PATH "/cs165/database/columns/"
 #endif
