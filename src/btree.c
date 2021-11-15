@@ -153,8 +153,7 @@ size_t search_index(BTNode *root, int value)
     
     if (root->isLeaf) // if searching a leaf node, return the index (size_t)
     {
-        pos = binary_search_index(root->values, root->num_values, value);
-        return root->positions[pos];
+        return binary_search_index(root->values, root->num_values, value);
     }
     else
     {

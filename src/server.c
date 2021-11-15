@@ -429,6 +429,15 @@ void execute_select(DbOperator *query, message *send_message)
                 size_t index_low = search_index(column->btree_root, low);
                 size_t index_high = search_index(column->btree_root, high);
                 // search_index returns the index that is greater or equal to target
+                while (column->btree_root->values[index_low] == low) {
+                    index_low--;
+                }
+                if (column->btree_root->values[index_low] < low) {
+                    index_low++;
+                }
+                while (column->btree_root->values[index_high] == high) {
+                    index_high++;
+                }
                 if (column->btree_root->values[index_high] > high) {
                     index_high--;
                 }
@@ -439,28 +448,58 @@ void execute_select(DbOperator *query, message *send_message)
                 size_t index_low = binary_search_index(column->data, column->length, low);
                 size_t index_high = binary_search_index(column->data, column->length, high);
                 // search_index returns the index that is greater or equal to target
+                while (column->data[index_low] == low) {
+                    index_low--;
+                }
+                if (column->data[index_low] < low) {
+                    index_low++;
+                }
+                while (column->data[index_high] == high) {
+                    index_high++;
+                }
                 if (column->data[index_high] > high) {
                     index_high--;
                 }
                 for (size_t i = index_low; i <= index_high; i++) {
-                    select_data[index++] = column->data[i];
+                    select_data[index++] = i;
                 }
             }
         } else if (column->btree) {
             size_t index_low = search_index(column->btree_root, low);
             size_t index_high = search_index(column->btree_root, high);
+            // print_btree(column->btree_root, 0);
                 // search_index returns the index that is greater or equal to target
+            while (column->btree_root->values[index_low] == low) {
+                index_low--;
+            }
+            if (column->btree_root->values[index_low] < low) {
+                index_low++;
+            }
+            
+            while (column->btree_root->values[index_high] == high) {
+                index_high++;
+            }
             if (column->btree_root->values[index_high] > high) {
                 index_high--;
             }
             for (size_t i = index_low; i <= index_high; i++) {
-                select_data[index++] = column->index->positions[column->btree_root->positions[i]];
+                select_data[index++] = column->btree_root->positions[i];
             }
 
         } else if (column->sorted) {
             size_t index_low = binary_search_index(column->index->values, column->length, low);
             size_t index_high = binary_search_index(column->index->values, column->length, high);
-                // search_index returns the index that is greater or equal to target
+            // search_index returns the index that is greater or equal to target
+            while (column->index->values[index_low] == low) {
+                index_low--;
+            }
+            if (column->index->values[index_low] < low) {
+                index_low++;
+            }
+            
+            while (column->index->values[index_high] == high) {
+                index_high++;
+            }
             if (column->index->values[index_high] > high) {
                 index_high--;
             }
@@ -681,7 +720,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     *result_data += payload[i];
                 }
                 if (agg_type == AVG)
-                    *result_data = *result_data / gc1->column_pointer.result->num_tuples;
+                    *result_data = gc1->column_pointer.result->num_tuples != 0 ? *result_data / gc1->column_pointer.result->num_tuples : 0;
                 result->payload = result_data;
                 result->num_tuples = 1;
             }
@@ -699,7 +738,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     {
                         *result_data += payload[i];
                     }
-                    *result_data = *result_data / gc1->column_pointer.result->num_tuples;
+                    *result_data = gc1->column_pointer.result->num_tuples != 0 ? *result_data / gc1->column_pointer.result->num_tuples : 0;
                     result->payload = result_data;
                     result->num_tuples = 1;
                 }
@@ -734,8 +773,12 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     {
                         result_data += payload[i];
                     }
-                    *avg_result = result_data * 1.0 / (1000 * gc1->column_pointer.result->num_tuples);
-                    *avg_result *= 1000;
+                    if (gc1->column_pointer.result->num_tuples != 0) {
+                        *avg_result = result_data * 1.0 / (1000 * gc1->column_pointer.result->num_tuples);
+                        *avg_result *= 1000;
+                    } else {
+                        *avg_result = 0;
+                    }
                     result->payload = avg_result;
                     result->num_tuples = 1;
                 }

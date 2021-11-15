@@ -33,3 +33,5 @@ void split_node(BTNode *node, BTNode *parent);
 int persist_btree(BTNode *root, char* table_name, char* column_name);
 
 BTNode *load_btree(char* table_name, char* column_name);
+
+void print_btree(BTNode *root, int level);
