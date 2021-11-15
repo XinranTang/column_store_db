@@ -650,40 +650,40 @@ void test_search() {
     deallocate_btree(node_non_sequential);
 }
 
-int main(){
+// int main(){
 
-    // test_insert_sequential();
-    // test_insert_non_sequential();
-    // test_search();
-    BTNode *node = initialize_btree();
-   // 1:1
-    node = insert_btree(node, 1, 1);
-    // 1:1 2:2
-    node = insert_btree(node, 2, 2);
-    //      2
-    // 1:1     2:2 3:3
-    node = insert_btree(node, 3, 3);
-    //      2
-    node = insert_btree(node, 4, 4);
-    node = insert_btree(node, 5, 5);
-    node = insert_btree(node, 6, 6);
-    node = insert_btree(node, 7, 7);
-    node = insert_btree(node, 8, 8);
-    node = insert_btree(node, 9, 9);
-    node = insert_btree(node, 10, 10);
-    node = insert_btree(node, 11, 11);
-    node = insert_btree(node, 12, 12);
-    node = insert_btree(node, 13, 13);
-    node = insert_btree(node, 14, 14);
-    node = insert_btree(node, 15, 15);
-    persist_btree(node, "tbl1", "col1");
-    deallocate_btree(node);
-    BTNode *new_node = load_btree("tbl1","col1");
-    printf("1***************************\n");
-    print_btree(new_node, 0);
-    printf("2***************************\n");
-    deallocate_btree(new_node);
-}
+//     // test_insert_sequential();
+//     // test_insert_non_sequential();
+//     // test_search();
+//     BTNode *node = initialize_btree();
+//    // 1:1
+//     node = insert_btree(node, 1, 1);
+//     // 1:1 2:2
+//     node = insert_btree(node, 2, 2);
+//     //      2
+//     // 1:1     2:2 3:3
+//     node = insert_btree(node, 3, 3);
+//     //      2
+//     node = insert_btree(node, 4, 4);
+//     node = insert_btree(node, 5, 5);
+//     node = insert_btree(node, 6, 6);
+//     node = insert_btree(node, 7, 7);
+//     node = insert_btree(node, 8, 8);
+//     node = insert_btree(node, 9, 9);
+//     node = insert_btree(node, 10, 10);
+//     node = insert_btree(node, 11, 11);
+//     node = insert_btree(node, 12, 12);
+//     node = insert_btree(node, 13, 13);
+//     node = insert_btree(node, 14, 14);
+//     node = insert_btree(node, 15, 15);
+//     persist_btree(node, "tbl1", "col1");
+//     deallocate_btree(node);
+//     BTNode *new_node = load_btree("tbl1","col1");
+//     printf("1***************************\n");
+//     print_btree(new_node, 0);
+//     printf("2***************************\n");
+//     deallocate_btree(new_node);
+// }
 // BTNode *insert_btree(BTNode *root, int value, size_t position)
 // {
 //     // insert value, position pair into a existing tree, return the tree root

@@ -36,11 +36,8 @@ int load_database() {
             fread(current_column, sizeof(Column), 1, fp);
             if ((!current_column->clustered) && (current_column->btree || current_column->sorted)) {
                 current_column->index = malloc(sizeof(ColumnIndex));
-		        current_column->index->values = malloc(current_table->table_length_capacity * sizeof(int));
-		        current_column->index->positions = malloc(current_table->table_length_capacity * sizeof(size_t));
                 fread(current_column->index, sizeof(ColumnIndex), 1, fp);
-                fread(current_column->index->values, current_table->table_length_capacity * sizeof(int), 1, fp);
-                fread(current_column->index->positions, current_table->table_length_capacity * sizeof(size_t), 1, fp);
+                load_index(current_table->name, current_column->name, current_column);
             }
             map_column(current_table, current_column);
             if (current_column->btree) {
@@ -167,8 +164,7 @@ int persist_table(Table* current_table, FILE* fp) {
         fwrite(current_column, sizeof(Column), 1, fp);
         if ((!current_column->clustered) && (current_column->btree || current_column->sorted)) {
             fwrite(current_column->index, sizeof(ColumnIndex), 1, fp);
-            fwrite(current_column->index->values, current_table->table_length_capacity * sizeof(int), 1, fp);
-            fwrite(current_column->index->positions, current_table->table_length_capacity * sizeof(size_t), 1, fp);
+            persist_index(current_table->name, current_column->name, current_column);
         }
         if (current_column->btree) {
             persist_btree(current_column->btree_root, current_table->name, current_column->name);
@@ -178,6 +174,53 @@ int persist_table(Table* current_table, FILE* fp) {
     for (size_t j = 0; j < current_table->col_count; j++) {
         return_flag = persist_column(current_table, &(current_table->columns[j]));
     }
+    return return_flag;
+}
+
+int load_index(char* table_name, char* column_name, Column* current_column) {
+    char index_path[MAX_COLUMN_PATH];
+    int return_flag = 0;
+	strcpy(index_path, COLUMN_PATH);
+    strcat(index_path, table_name);
+    strcat(index_path, PATH_SEP);
+	strcat(index_path, column_name);
+    strcat(index_path, ".idx");
+    // write tables metadata
+    FILE* fp = fopen(index_path, "rb");
+    if (!fp) {
+        return_flag = -1;
+        return return_flag;
+    }
+    current_column->index->values = malloc(current_column->length * sizeof(int));
+	current_column->index->positions = malloc(current_column->length * sizeof(size_t));
+    fread(current_column->index->values, sizeof(int), current_column->length, fp);
+    fread(current_column->index->positions, sizeof(size_t), current_column->length, fp);
+    fclose(fp);
+    return return_flag;
+}
+
+int persist_index(char* table_name, char* column_name, Column* current_column) {
+    char index_path[MAX_COLUMN_PATH];
+    int return_flag = 0;
+	strcpy(index_path, COLUMN_PATH);
+    struct stat st = {0};
+    strcat(index_path, table_name);
+    strcat(index_path, PATH_SEP);
+    // create btree path for table if not exist
+    if (stat(index_path, &st) == -1) {
+        mkdir(index_path, 0600);
+    }
+	strcat(index_path, column_name);
+    strcat(index_path, ".idx");
+    // write tables metadata
+    FILE* fp = fopen(index_path, "wb");
+    if (!fp) {
+        return_flag = -1;
+        return return_flag;
+    }
+    fwrite(current_column->index->values, sizeof(int),current_column->length, fp);
+    fwrite(current_column->index->positions, sizeof(size_t), current_column->length, fp);
+    fclose(fp);
     return return_flag;
 }
 

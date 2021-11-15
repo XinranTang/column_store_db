@@ -24,6 +24,8 @@ int persist_table(Table* current_table, FILE* fp);
 
 int persist_column(Table* current_table, Column* current_column);
 
-// int persist_context(size_t* intermediate_data, int context_capacity);
+int persist_index(char* table_name, char* column_name, Column* current_column);
+
+int load_index(char* table_name, char* column_name, Column* current_column);
 
 int free_database();

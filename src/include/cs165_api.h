@@ -390,6 +390,8 @@ void build_primary_index(Table *table, size_t primary_column_index);
 
 void build_secondary_index(Table *table, Column *primary_column, bool btree, bool sorted);
 
+long binary_search(int* array, long l, long r, int x);
+
 Status shutdown_server();
 
 char **execute_db_operator(DbOperator *query);

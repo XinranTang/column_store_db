@@ -3,7 +3,7 @@
 # Please see example of "utils" to see how to add additional file
 # to your project
 
-all: client server btree
+all: client server
 
 # C-compiler settings
 CC = gcc -std=c99 -g -ggdb3
@@ -62,11 +62,8 @@ client: client.o utils.o
 server: server.o parse.o persist.o utils.o db_manager.o client_context.o threadpool.o btree.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-btree: btree.o
-	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
-
 clean:
-	rm -f client server btree *.o *~ *.bak core *.core $(SOCK_PATH)
+	rm -f client server *.o *~ *.bak core *.core $(SOCK_PATH)
 	rm -rf .deps
 
 distclean: clean

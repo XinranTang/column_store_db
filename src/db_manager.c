@@ -119,6 +119,10 @@ Column *create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	strcpy(column->name, name);
 	column->sorted = sorted;
 	column->length = table->table_length;
+	column->btree = false;
+	column->clustered = false;
+	column->sorted = false;
+	column->btree_root = NULL;
 	// set return status code and message
 	ret_status->code = OK;
 	return NULL;
@@ -132,22 +136,17 @@ void create_index(Table *table, Column *column, bool sorted, bool btree, bool cl
 	column->sorted = sorted|btree;
 	column->btree = btree;
 	column->clustered = clustered;
-	if ((sorted|btree) && clustered) {
-		for (size_t i = 0; i < table->col_count; i++) {
-			table->columns[i].clustered = true;
-		}
-	} else if ((sorted|btree) && !clustered) {
+	if ((sorted|btree) && !clustered) {
 		// TODO: free column_index, values and positions
 		ColumnIndex* column_index = malloc(sizeof(ColumnIndex));
-		column_index->values = malloc(table->table_length_capacity * sizeof(int));
-		column_index->positions = malloc(table->table_length_capacity * sizeof(size_t));
+		// here we do not allocate memory for column index's indexes and positions
 		column->index = column_index;
 	}
 	// set return status code and message
 	ret_status->code = OK;
 }
 
-void quick_sort(Table *table, size_t primary_column, size_t start, size_t end) {
+void quick_sort(Table *table, size_t primary_column, long start, long end) {
 	if (start >= end) return;
 	size_t i = start;
 	size_t j = end;
@@ -157,7 +156,7 @@ void quick_sort(Table *table, size_t primary_column, size_t start, size_t end) {
 	}
 	while (i < j) {
 		while (i < j && table->columns[primary_column].data[j] >= pivots[primary_column]) j--;
-		while (i < j && table->columns[primary_column].data[i] <= pivots[primary_column]) i--;
+		while (i < j && table->columns[primary_column].data[i] <= pivots[primary_column]) i++;
 		if (i < j) {
 			int tmp[table->col_count];
 			for (size_t c = 0; c < table->col_count; c++) {
@@ -181,7 +180,7 @@ void quick_sort(Table *table, size_t primary_column, size_t start, size_t end) {
 	quick_sort(table, primary_column, i + 1, end);
 }
 
-void quick_sort_index(ColumnIndex * index, size_t start, size_t end) {
+void quick_sort_index(ColumnIndex * index, long start, long end) {
 	if (start >= end) return;
 	size_t i = start;
 	size_t j = end;
@@ -201,28 +200,43 @@ void quick_sort_index(ColumnIndex * index, size_t start, size_t end) {
 	index->values[start] = index->values[i];
 	index->values[i] = pivot;
 	size_t tmp_idx = index->positions[start];
-	index->positions[start] = index->values[i];
-	index->values[i] = tmp_idx;
+	index->positions[start] = index->positions[i];
+	index->positions[i] = tmp_idx;
 	quick_sort_index(index, start, i - 1);
 	quick_sort_index(index, i + 1, end);
 }
 
 void build_column_index(Column * column) {
 	if (!column->index) {
-		cs165_log(stderr, "Column index not crated.");
+		cs165_log(stderr, "Column index not created.\n");
 		return;
 	}
 	ColumnIndex *index = column->index;
+	// here indexes and positions are of length column->length but not table->column_length_capacity
+	index->values = malloc(column->length * sizeof(int));
+	index->positions = malloc(column->length * sizeof(size_t));
 	for (size_t i = 0; i < column->length; i++) {
 		index->values[i] = column->data[i];
 		index->positions[i] = i;
 	}
+	// 	for (size_t i  = 0; i < column->length; i++) {
+	// 	printf("*%d %ld ",column->index->values[i], column->index->positions[i]);
+	// }
+	// printf("\n");
 	quick_sort_index(index, 0, column->length - 1);
+	// 		for (size_t i  = 0; i < column->length; i++) {
+	// 	printf("**%d %ld ",column->index->values[i], column->index->positions[i]);
+	// }
+	// 	printf("\n");
 }
 
 void build_primary_index(Table *table, size_t primary_column_index) {
 	// propagate the order of primary column to the whole table
 	quick_sort(table, primary_column_index, 0, table->table_length - 1);
+	// for (size_t i  = 0; i < table->columns[primary_column_index].length; i++) {
+	// 	printf("%d ",  table->columns[primary_column_index].data[i], table->columns[primary_column_index].data[i]);
+	// }
+	// printf("\n");
 	if (table->columns[primary_column_index].btree) {
 		// create indexes for primary column
 		size_t *positions = malloc(table->columns[primary_column_index].length * sizeof(size_t));
@@ -238,6 +252,10 @@ void build_secondary_index(Table *table, Column * primary_column, bool btree, bo
 	// TODO: persist btree
 	// TODO: persist indexes
 	build_column_index(primary_column);
+	// for (size_t i  = 0; i < primary_column->length; i++) {
+	// 	printf("%d %ld   ", primary_column->index->values[i], primary_column->index->positions[i]);
+	// }
+	// printf("\n");
 	if (btree) {
 		primary_column->btree_root = create_btree(primary_column->index->values, primary_column->index->positions, primary_column->length);
 	}

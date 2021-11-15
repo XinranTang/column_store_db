@@ -285,7 +285,11 @@ void execute_load(DbOperator *query, message *send_message)
                 }
             }
             // record the primary indexed column if exists
+            // 1. find first primary index column
+            // 2. build primary index
+            // 3. build secondary index
             size_t primary_index_column = 0;
+            // flag: used to record if found primary index column
             bool flag = false;
             // set length of column and find primary indexed column
             for (size_t i = 0; i < current_table->col_count; i++)
@@ -314,7 +318,7 @@ void execute_load(DbOperator *query, message *send_message)
             // process secondary indexes
             for (size_t i = 0; i < current_table->col_count; i++)
             {
-                if (i == primary_index_column)
+                if (flag & (i == primary_index_column))
                     continue;
                 if (current_table->columns[i].btree | current_table->columns[i].sorted)
                 {
@@ -331,9 +335,9 @@ void execute_load(DbOperator *query, message *send_message)
 
 void execute_select(DbOperator *query, message *send_message)
 {
+    // TODO: do we need to modify TWO_COLUMN select to use indexing?
     if (query->operator_fields.select_operator.select_type == TWO_COLUMN)
     {
-
         Result *position_vector = lookup_variables(NULL, NULL, NULL, query->operator_fields.select_operator.position_vector, query->context)->column_pointer.result;
         Result *value_vector = lookup_variables(NULL, NULL, NULL, query->operator_fields.select_operator.value_vector, query->context)->column_pointer.result;
         int low = query->operator_fields.select_operator.low;
@@ -418,13 +422,57 @@ void execute_select(DbOperator *query, message *send_message)
         int high = query->operator_fields.select_operator.high;
         // map context file
         size_t *select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(size_t));
-
         size_t index = 0;
+        // if primary index
+        if (column->clustered) {
+            if (column->btree) {
+                size_t index_low = search_index(column->btree_root, low);
+                size_t index_high = search_index(column->btree_root, high);
+                // search_index returns the index that is greater or equal to target
+                if (column->btree_root->values[index_high] > high) {
+                    index_high--;
+                }
+                for (size_t i = index_low; i <= index_high; i++) {
+                    select_data[index++] = column->btree_root->positions[i];
+                }
+            } else {// sorted non btree primary index
+                size_t index_low = binary_search_index(column->data, column->length, low);
+                size_t index_high = binary_search_index(column->data, column->length, high);
+                // search_index returns the index that is greater or equal to target
+                if (column->data[index_high] > high) {
+                    index_high--;
+                }
+                for (size_t i = index_low; i <= index_high; i++) {
+                    select_data[index++] = column->data[i];
+                }
+            }
+        } else if (column->btree) {
+            size_t index_low = search_index(column->btree_root, low);
+            size_t index_high = search_index(column->btree_root, high);
+                // search_index returns the index that is greater or equal to target
+            if (column->btree_root->values[index_high] > high) {
+                index_high--;
+            }
+            for (size_t i = index_low; i <= index_high; i++) {
+                select_data[index++] = column->index->positions[column->btree_root->positions[i]];
+            }
 
-        for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
-        {
-            if (column->data[i] >= low && column->data[i] <= high)
-                select_data[index++] = i;
+        } else if (column->sorted) {
+            size_t index_low = binary_search_index(column->index->values, column->length, low);
+            size_t index_high = binary_search_index(column->index->values, column->length, high);
+                // search_index returns the index that is greater or equal to target
+            if (column->index->values[index_high] > high) {
+                index_high--;
+            }
+            for (size_t i = index_low; i <= index_high; i++) {
+                select_data[index++] = column->index->positions[i];
+            }
+        } else {
+            for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
+            {
+                if (column->data[i] >= low && column->data[i] <= high)
+                    select_data[index++] = i;
+            }
         }
 
         // insert selected positions to client context
@@ -1212,6 +1260,7 @@ void execute_print(DbOperator *query, message *send_message)
     send(query->client_fd, &break_signal, strlen(break_signal) + 1, 0);
     // Just print for checking on server side
     send_message->status = OK_PRINT;
+    free(results);
 }
 
 // TODO: check batch start
@@ -1387,7 +1436,7 @@ void handle_client(int client_socket)
         if (length < 0)
         {
             log_err("Client connection closed!\n");
-            return;
+            break;
         }
         else if (length == 0)
         {
@@ -1499,44 +1548,44 @@ int setup_server()
 // After handling the client, it will exit.
 // You WILL need to extend this to handle MULTIPLE concurrent clients
 // and remain running until it receives a shut-down command.
-//
+
 // Getting Started Hints:
 //      How will you extend main to handle multiple concurrent clients?
 //      Is there a maximum number of concurrent client connections you will allow?
 //      What aspects of siloes or isolation are maintained in your design? (Think `what` is shared between `whom`?)
-// int main(void)
-// {
-//     int db = load_database();
-//     if (db < 0)
-//     {
-//         cs165_log(stdout, "No current database ...\n");
-//     }
+int main(void)
+{
+    int db = load_database();
+    if (db < 0)
+    {
+        cs165_log(stdout, "No current database ...\n");
+    }
 
-//     int server_socket = setup_server();
-//     if (server_socket < 0)
-//     {
-//         exit(1);
-//     }
+    int server_socket = setup_server();
+    if (server_socket < 0)
+    {
+        exit(1);
+    }
 
-//     log_info("Waiting for a connection %d ...\n", server_socket);
+    log_info("Waiting for a connection %d ...\n", server_socket);
 
-//     struct sockaddr_un remote;
-//     socklen_t t = sizeof(remote);
-//     int client_socket = 0;
+    struct sockaddr_un remote;
+    socklen_t t = sizeof(remote);
+    int client_socket = 0;
 
-//     // TODO: handle multiple clients
-//     while ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)))
-//     {
-//         log_info("Connection accepted.\n", server_socket);
-//         handle_client(client_socket);
-//     }
-//     if (client_socket == -1)
-//     {
-//         log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-//         // TODO: move the following executions to server side
-//         persist_database();
-//         free_database();
-//         exit(1);
-//     }
-//     return 0;
-// }
+    // TODO: handle multiple clients
+    while ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)))
+    {
+        log_info("Connection accepted.\n", server_socket);
+        handle_client(client_socket);
+    }
+    if (client_socket == -1)
+    {
+        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+        // TODO: move the following executions to server side
+        persist_database();
+        free_database();
+        exit(1);
+    }
+    return 0;
+}
