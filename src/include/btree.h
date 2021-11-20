@@ -5,8 +5,11 @@
 #include "cs165_api.h"
 #include "utils.h"
 #include "common.h"
+#include <time.h>
+#include <stdlib.h>
 
-#define MAX_KEYS 1024
+
+#define MAX_KEYS 2048
 
 BTNode *create_btree(int *values, size_t *positions, size_t num_nodes);
 
@@ -16,7 +19,9 @@ void deallocate_btree(BTNode *root);
 
 BTNode *insert_btree(BTNode *root, int value, size_t position);
 
-size_t search_index(BTNode *root, int value);
+size_t search_position(BTNode *root, int value);
+
+int search_index(BTNode *root, int value);
 
 BTNode *search_leaf(BTNode *root, int value);
 

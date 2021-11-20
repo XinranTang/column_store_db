@@ -5,7 +5,7 @@ BTNode *create_btree(int *values, size_t *positions, size_t num_nodes)
     BTNode *root = initialize_btree();
     for (size_t i = 0; i < num_nodes; i++)
     {
-        insert_btree(root, values[i], positions[i]);
+        root = insert_btree(root, values[i], positions[i]);
     }
     return root;
 }
@@ -137,10 +137,11 @@ int binary_search_index(int *values, int n, int value)
             high = middle;
         }
     }
+
     return high;
 }
 
-size_t search_index(BTNode *root, int value)
+int search_index(BTNode *root, int value)
 {
     // given a root b-tree node, search for the position associated with the target value
     int pos;
@@ -161,6 +162,31 @@ size_t search_index(BTNode *root, int value)
         return search_index(root->children[pos], value);
     }
 }
+
+size_t search_position(BTNode *root, int value)
+{
+    // given a root b-tree node, search for the position associated with the target value
+    int pos;
+    // if empty tree, return -1
+    if (root->num_values == 0)
+    {
+        return -1;
+    }
+    /* look for smallest position that value fits below */
+    
+    if (root->isLeaf) // if searching a leaf node, return the position (size_t)
+    {
+        pos = binary_search_index(root->values, root->num_values, value);
+        if (pos == root->num_values) pos--;
+        return root->positions[pos];
+    }
+    else
+    {
+        pos = binary_search_value(root->values, root->num_values, value);
+        return search_position(root->children[pos], value);
+    }
+}
+
 BTNode *search_leaf(BTNode *root, int value) 
 {
     // TODO: add search queue
@@ -641,48 +667,36 @@ void test_search() {
     printf("====================================\n\n");
     node_non_sequential = insert_btree(node_non_sequential, 12, 12);
     for (int i = 1; i <= 15; i++) {
-        size_t l = search_index(node, i);
-        size_t r = search_index(node_non_sequential, i);
+        size_t l = search_position(node, i);
+        size_t r = search_position(node_non_sequential, i);
         printf("%d %ld == %ld ?: %d\n", i, l, r, l == r);
     }
     deallocate_btree(node);
     deallocate_btree(node_non_sequential);
 }
 
-// int main(){
-
-//     // test_insert_sequential();
-//     // test_insert_non_sequential();
-//     // test_search();
-//     BTNode *node = initialize_btree();
+int main_bak(){
+      test_insert_sequential();
+     test_insert_non_sequential();
+     test_search();
+     printf("%d\n",MAX_KEYS);
+     BTNode *node = initialize_btree();
 //    // 1:1
-//     node = insert_btree(node, 1, 1);
-//     // 1:1 2:2
-//     node = insert_btree(node, 2, 2);
-//     //      2
-//     // 1:1     2:2 3:3
-//     node = insert_btree(node, 3, 3);
-//     //      2
-//     node = insert_btree(node, 4, 4);
-//     node = insert_btree(node, 5, 5);
-//     node = insert_btree(node, 6, 6);
-//     node = insert_btree(node, 7, 7);
-//     node = insert_btree(node, 8, 8);
-//     node = insert_btree(node, 9, 9);
-//     node = insert_btree(node, 10, 10);
-//     node = insert_btree(node, 11, 11);
-//     node = insert_btree(node, 12, 12);
-//     node = insert_btree(node, 13, 13);
-//     node = insert_btree(node, 14, 14);
-//     node = insert_btree(node, 15, 15);
-//     persist_btree(node, "tbl1", "col1");
-//     deallocate_btree(node);
-//     BTNode *new_node = load_btree("tbl1","col1");
-//     printf("1***************************\n");
-//     print_btree(new_node, 0);
-//     printf("2***************************\n");
-//     deallocate_btree(new_node);
-// }
+             srand(time(NULL));   // Initialization, should only be called once.
+         for (int i = 1; i <= 1000000; i++) {
+
+        int r = rand() % 103071; 
+        node =         insert_btree(node, r, i);     
+    }
+     persist_btree(node, "tbl1", "col1");
+
+     deallocate_btree(node);
+     BTNode *new_node = load_btree("tbl1","col1");
+     printf("1***************************\n");
+     print_btree(new_node, 0);
+     printf("2***************************\n");
+     deallocate_btree(new_node);
+ }
 // BTNode *insert_btree(BTNode *root, int value, size_t position)
 // {
 //     // insert value, position pair into a existing tree, return the tree root

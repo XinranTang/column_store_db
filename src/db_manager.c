@@ -185,9 +185,10 @@ void quick_sort_index(ColumnIndex * index, long start, long end) {
 	size_t i = start;
 	size_t j = end;
 	int pivot = index->values[start];
+	size_t pivot_pos = index->positions[start];
 	while (i < j) {
-		while (i < j && index->values[j] >= pivot) j--;
-		while (i < j && index->values[i] <= pivot) i++;
+		while (i < j && ((index->values[j] > pivot) || ((index->values[j] == pivot) && (index->positions[j] >= pivot_pos)))) j--;
+		while (i < j && ((index->values[i] < pivot) || ((index->values[i] == pivot) && (index->positions[i] <= pivot_pos)))) i++;
 		if (i < j) {
 			int tmp_val = index->values[i];
 			index->values[i] = index->values[j];
@@ -252,11 +253,16 @@ void build_secondary_index(Table *table, Column * primary_column, bool btree, bo
 	// TODO: persist btree
 	// TODO: persist indexes
 	build_column_index(primary_column);
-	// for (size_t i  = 0; i < primary_column->length; i++) {
-	// 	printf("%d %ld   ", primary_column->index->values[i], primary_column->index->positions[i]);
+    // for (size_t i  = 0; i < primary_column->length; i++) {
+	// printf("%d %ld   ", primary_column->index->values[i], primary_column->index->positions[i]);
 	// }
-	// printf("\n");
+	//printf("\n%ld\n", primary_column->length);
 	if (btree) {
-		primary_column->btree_root = create_btree(primary_column->index->values, primary_column->index->positions, primary_column->length);
+		size_t *positions = malloc(primary_column->length * sizeof(size_t));
+		for (size_t i = 0; i < primary_column->length; i++) {
+			positions[i] = i;
+		}
+		primary_column->btree_root = create_btree(primary_column->index->values, positions, primary_column->length);
+		free(positions);
 	}
 }

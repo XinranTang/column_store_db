@@ -329,6 +329,7 @@ void execute_load(DbOperator *query, message *send_message)
             send(query->client_fd, &load_message_header, sizeof(message), 0);
         }
     }
+    
 
     send_message->status = OK_DONE;
 }
@@ -426,23 +427,23 @@ void execute_select(DbOperator *query, message *send_message)
         // if primary index
         if (column->clustered) {
             if (column->btree) {
-                size_t index_low = search_index(column->btree_root, low);
-                size_t index_high = search_index(column->btree_root, high);
-                // search_index returns the index that is greater or equal to target
-                while (column->btree_root->values[index_low] == low) {
+                long index_low = search_position(column->btree_root, low);
+                size_t index_high = search_position(column->btree_root, high);
+                // search_position returns the position that is greater or equal to target
+                while (index_low >= 0 && column->data[index_low] >= low) {
                     index_low--;
                 }
-                if (column->btree_root->values[index_low] < low) {
+                while (column->data[index_low] < low) {
                     index_low++;
                 }
-                while (column->btree_root->values[index_high] == high) {
+                while (index_high < column->length && column->data[index_high] <= high) {
                     index_high++;
                 }
-                if (column->btree_root->values[index_high] > high) {
+                while (column->data[index_high] > high) {
                     index_high--;
                 }
-                for (size_t i = index_low; i <= index_high; i++) {
-                    select_data[index++] = column->btree_root->positions[i];
+                for (size_t i = index_low; i <= index_high && i < column->length; i++) {
+                    select_data[index++] = i;
                 }
             } else {// sorted non btree primary index
                 size_t index_low = binary_search_index(column->data, column->length, low);
@@ -451,13 +452,13 @@ void execute_select(DbOperator *query, message *send_message)
                 while (column->data[index_low] == low) {
                     index_low--;
                 }
-                if (column->data[index_low] < low) {
+                while (column->data[index_low] < low) {
                     index_low++;
                 }
                 while (column->data[index_high] == high) {
                     index_high++;
                 }
-                if (column->data[index_high] > high) {
+                while (column->data[index_high] > high) {
                     index_high--;
                 }
                 for (size_t i = index_low; i <= index_high; i++) {
@@ -465,25 +466,25 @@ void execute_select(DbOperator *query, message *send_message)
                 }
             }
         } else if (column->btree) {
-            size_t index_low = search_index(column->btree_root, low);
-            size_t index_high = search_index(column->btree_root, high);
+            long index_low = search_position(column->btree_root, low);
+            size_t index_high = search_position(column->btree_root, high);
             // print_btree(column->btree_root, 0);
-                // search_index returns the index that is greater or equal to target
-            while (column->btree_root->values[index_low] == low) {
+                // search_position returns the position that is greater or equal to target
+            while (index_low >= 0 && column->index->values[index_low] >= low) {
                 index_low--;
             }
-            if (column->btree_root->values[index_low] < low) {
+            while (column->index->values[index_low] < low) {
                 index_low++;
             }
             
-            while (column->btree_root->values[index_high] == high) {
+            while (index_high < column->length && column->index->values[index_high] <= high) {
                 index_high++;
             }
-            if (column->btree_root->values[index_high] > high) {
+            while (column->index->values[index_high] > high) {
                 index_high--;
             }
-            for (size_t i = index_low; i <= index_high; i++) {
-                select_data[index++] = column->btree_root->positions[i];
+            for (size_t i = index_low; i <= index_high && i < column->length; i++) {
+                select_data[index++] = column->index->positions[i];
             }
 
         } else if (column->sorted) {
@@ -493,14 +494,14 @@ void execute_select(DbOperator *query, message *send_message)
             while (column->index->values[index_low] == low) {
                 index_low--;
             }
-            if (column->index->values[index_low] < low) {
+            while (column->index->values[index_low] < low) {
                 index_low++;
             }
             
             while (column->index->values[index_high] == high) {
                 index_high++;
             }
-            if (column->index->values[index_high] > high) {
+            while (column->index->values[index_high] > high) {
                 index_high--;
             }
             for (size_t i = index_low; i <= index_high; i++) {
@@ -709,9 +710,9 @@ void execute_aggregate(DbOperator *query, message *send_message)
         { // result
             if (gc1->column_pointer.result->data_type == FLOAT)
             {
-                result->data_type = FLOAT;
+                result->data_type = DOUBLE;
 
-                float *result_data = malloc(1 * sizeof(float));
+                double *result_data = malloc(1 * sizeof(double));
                 *result_data = 0.0;
 
                 float *payload = (float *)gc1->column_pointer.result->payload;
@@ -729,9 +730,9 @@ void execute_aggregate(DbOperator *query, message *send_message)
 
                 if (agg_type == AVG)
                 {
-                    result->data_type = FLOAT;
+                    result->data_type = DOUBLE;
 
-                    float *result_data = malloc(1 * sizeof(float));
+                    double *result_data = malloc(1 * sizeof(double));
                     *result_data = 0.0;
                     int *payload = (int *)gc1->column_pointer.result->payload;
                     for (size_t i = 0; i < gc1->column_pointer.result->num_tuples; i++)
