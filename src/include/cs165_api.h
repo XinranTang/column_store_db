@@ -34,7 +34,8 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 #define CONTEXT_CAPACIRY 103
 #define MAX_COLUMN_PATH 256
-
+#define NUM_BINS 64
+#define SELECTIVITY_THRES 0.6
 /**
  * EXTRA
  * DataType
@@ -52,6 +53,12 @@ typedef enum DataType
     DOUBLE,
 } DataType;
 
+typedef enum ColumnSelectType
+{
+    SEQUENTIAL,
+    RANDOM_ACCESS,
+} ColumnSelectType;
+
 struct Comparator;
 
 typedef struct ColumnIndex
@@ -59,6 +66,12 @@ typedef struct ColumnIndex
     int *values;
     size_t *positions;
 } ColumnIndex;
+
+typedef struct Histogram
+{
+    int values[NUM_BINS];
+    size_t counts[NUM_BINS];
+} Histogram;
 
 typedef struct BTNode
 {
@@ -81,6 +94,7 @@ typedef struct Column
     // void *index;
     ColumnIndex *index;
     BTNode *btree_root;
+    Histogram *histogram;
 } Column;
 
 /**
@@ -384,11 +398,13 @@ Table *create_table(Db *db, const char *name, size_t num_columns, Status *status
 
 Column *create_column(Table *table, char *name, bool sorted, Status *ret_status);
 
-void create_index(Table *table, Column *column, bool sorted, bool btree, bool clustered, Status *ret_status);
+SelectType optimize(Column *column, int low, int high);
+
+void create_index(Column *column, bool sorted, bool btree, bool clustered, Status *ret_status);
 
 void build_primary_index(Table *table, size_t primary_column_index);
 
-void build_secondary_index(Table *table, Column *primary_column, bool btree, bool sorted);
+void build_secondary_index(Column *primary_column, bool btree);
 
 long binary_search(int* array, long l, long r, int x);
 

@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 
-#define MAX_KEYS 2048
+#define MAX_KEYS 1024
 
 BTNode *create_btree(int *values, size_t *positions, size_t num_nodes);
 
