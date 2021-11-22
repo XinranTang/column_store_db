@@ -11,8 +11,8 @@
 #include <stdio.h>
 
 typedef struct SearchQueueNode
-{                                      
-    void* content;        // value TODO: check if freed or not
+{
+    void *content; // value TODO: check if freed or not
     struct SearchQueueNode *next;
     struct SearchQueueNode *prev;
 } SearchQueueNode;
@@ -21,32 +21,34 @@ typedef struct SearchQueueNode
  * trims newline characters from a string (in place)
  **/
 
-char* trim_newline(char *str);
+char *trim_newline(char *str);
 
 /**
  * trims parenthesis characters from a string (in place)
  **/
 
-char* trim_parenthesis(char *str);
+char *trim_parenthesis(char *str);
 
 /**
  * trims whitespace characters from a string (in place)
  **/
 
-char* trim_whitespace(char *str);
+char *trim_whitespace(char *str);
 
 /**
  * trims quotations characters from a string (in place)
  **/
 
-char* trim_quotes(char *str);
+char *trim_quotes(char *str);
+
+int int_cmp(const void *a, const void *b);
 
 // cs165_log(out, format, ...)
 // Writes the string from @format to the @out pointer, extendable for
 // additional parameters.
 //
 // Usage: cs165_log(stderr, "%s: error at line: %d", __func__, __LINE__);
-void cs165_log(FILE* out, const char *format, ...);
+void cs165_log(FILE *out, const char *format, ...);
 
 // log_err(format, ...)
 // Writes the string from @format to stderr, extendable for

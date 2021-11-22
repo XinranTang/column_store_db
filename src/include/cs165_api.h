@@ -35,11 +35,8 @@ SOFTWARE.
 #define CONTEXT_CAPACIRY 103
 #define MAX_COLUMN_PATH 256
 #define NUM_BINS 64
-<<<<<<< HEAD
-#define SELECTIVITY_THRES 0.5
-=======
 #define SELECTIVITY_THRES 0.6
->>>>>>> d05d2163633cf6eb14bf9209bdfe58279e10f1f1
+
 /**
  * EXTRA
  * DataType

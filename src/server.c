@@ -552,6 +552,7 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     select_data[index++] = column->index->positions[i];
                 }
+                qsort(select_data, index, sizeof(size_t), int_cmp);
             }
             else
             {

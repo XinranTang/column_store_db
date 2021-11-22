@@ -173,7 +173,7 @@ SelectType optimize(Column *column, int low, int high)
 	{
 		count += hist->counts[i];
 	}
-	printf("Selectivity: %f\n", count * 1.0 / column->length);
+	printf("Selectivity: %.2f\n", count * 1.0 / column->length);
 	if (count * 1.0 / column->length < SELECTIVITY_THRES)
 	{
 		return RANDOM_ACCESS;
