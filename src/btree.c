@@ -675,29 +675,29 @@ void test_search() {
     deallocate_btree(node_non_sequential);
 }
 
-int main_bak(){
-      test_insert_sequential();
-     test_insert_non_sequential();
-     test_search();
-     printf("%d\n",MAX_KEYS);
-     BTNode *node = initialize_btree();
-//    // 1:1
-             srand(time(NULL));   // Initialization, should only be called once.
-         for (int i = 1; i <= 1000000; i++) {
+//int main_bak(){
+//      test_insert_sequential();
+ //    test_insert_non_sequential();
+ //    test_search();
+ //    printf("%d\n",MAX_KEYS);
+ //    BTNode *node = initialize_btree();
+//    // 1:1s
+  //           srand(time(NULL));   // Initialization, should only be called once.
+  //       for (int i = 1; i <= 1000000; i++) {
 
-        int r = rand() % 103071; 
-        node =         insert_btree(node, r, i);     
-    }
-     persist_btree(node, "tbl1", "col1");
+  //      int r = rand() % 103071; 
+  //      node =         insert_btree(node, r, i);     
+   // }
+    // persist_btree(node, "tbl1", "col1");
 
-     deallocate_btree(node);
-     BTNode *new_node = load_btree("tbl1","col1");
-     printf("1***************************\n");
-     print_btree(new_node, 0);
-     printf("2***************************\n");
-     deallocate_btree(new_node);
- }
-// BTNode *insert_btree(BTNode *root, int value, size_t position)
+  //   deallocate_btree(node);
+  //   BTNode *new_node = load_btree("tbl1","col1");
+  //   printf("1***************************\n");
+  //   print_btree(new_node, 0);
+  //   printf("2***************************\n");
+   //  deallocate_btree(new_node);
+ //}
+// BTNode *insert_btree(BTNode *root, int value, size_t position) 
 // {
 //     // insert value, position pair into a existing tree, return the tree root
 //     // TODO: free memory

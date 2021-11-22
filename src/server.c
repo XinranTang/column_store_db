@@ -90,12 +90,12 @@ void execute_create(DbOperator *query, message *send_message)
     else if (query->operator_fields.create_operator.create_type == _INDEX)
     {
         Status create_status;
-        create_index(query->operator_fields.create_operator.table,
-                     query->operator_fields.create_operator.column,
-                     query->operator_fields.create_operator.sorted,
-                     query->operator_fields.create_operator.btree,
-                     query->operator_fields.create_operator.clustered,
-                     &create_status);
+        create_index(
+            query->operator_fields.create_operator.column,
+            query->operator_fields.create_operator.sorted,
+            query->operator_fields.create_operator.btree,
+            query->operator_fields.create_operator.clustered,
+            &create_status);
         if (create_status.code != OK)
         {
             send_message->status = EXECUTION_ERROR;
@@ -322,14 +322,13 @@ void execute_load(DbOperator *query, message *send_message)
                     continue;
                 if (current_table->columns[i].btree | current_table->columns[i].sorted)
                 {
-                    build_secondary_index(current_table, &current_table->columns[i], current_table->columns[i].btree, current_table->columns[i].sorted);
+                    build_secondary_index(&current_table->columns[i], current_table->columns[i].btree);
                 }
             }
             load_message_header.status = OK_DONE;
             send(query->client_fd, &load_message_header, sizeof(message), 0);
         }
     }
-    
 
     send_message->status = OK_DONE;
 }
@@ -425,89 +424,143 @@ void execute_select(DbOperator *query, message *send_message)
         size_t *select_data = malloc(query->operator_fields.select_operator.column_length * sizeof(size_t));
         size_t index = 0;
         // if primary index
-        if (column->clustered) {
-            if (column->btree) {
+        if (column->clustered)
+        {
+            ColumnSelectType column_select_type = optimize(column, low, high);
+            if (column_select_type == RANDOM_ACCESS)
+            {
+                if (column->btree)
+                {
+                    long index_low = search_position(column->btree_root, low);
+                    size_t index_high = search_position(column->btree_root, high);
+                    // search_position returns the position that is greater or equal to target
+                    while (index_low >= 0 && column->data[index_low] >= low)
+                    {
+                        index_low--;
+                    }
+                    while (column->data[index_low] < low)
+                    {
+                        index_low++;
+                    }
+                    while (index_high < column->length && column->data[index_high] <= high)
+                    {
+                        index_high++;
+                    }
+                    while (column->data[index_high] > high)
+                    {
+                        index_high--;
+                    }
+                    for (size_t i = index_low; i <= index_high && i < column->length; i++)
+                    {
+                        select_data[index++] = i;
+                    }
+                }
+                else
+                { // sorted non btree primary index
+                    size_t index_low = binary_search_index(column->data, column->length, low);
+                    size_t index_high = binary_search_index(column->data, column->length, high);
+                    // search_index returns the index that is greater or equal to target
+                    while (column->data[index_low] == low)
+                    {
+                        index_low--;
+                    }
+                    while (column->data[index_low] < low)
+                    {
+                        index_low++;
+                    }
+                    while (column->data[index_high] == high)
+                    {
+                        index_high++;
+                    }
+                    while (column->data[index_high] > high)
+                    {
+                        index_high--;
+                    }
+                    for (size_t i = index_low; i <= index_high; i++)
+                    {
+                        select_data[index++] = i;
+                    }
+                }
+            }
+            else
+            {
+                goto sequential_select;
+            }
+        }
+        else if (column->btree)
+        {
+            ColumnSelectType column_select_type = optimize(column, low, high);
+            if (column_select_type == RANDOM_ACCESS)
+            {
                 long index_low = search_position(column->btree_root, low);
                 size_t index_high = search_position(column->btree_root, high);
+                // print_btree(column->btree_root, 0);
                 // search_position returns the position that is greater or equal to target
-                while (index_low >= 0 && column->data[index_low] >= low) {
+                while (index_low >= 0 && column->index->values[index_low] >= low)
+                {
                     index_low--;
                 }
-                while (column->data[index_low] < low) {
+                while (column->index->values[index_low] < low)
+                {
                     index_low++;
                 }
-                while (index_high < column->length && column->data[index_high] <= high) {
-                    index_high++;
-                }
-                while (column->data[index_high] > high) {
-                    index_high--;
-                }
-                for (size_t i = index_low; i <= index_high && i < column->length; i++) {
-                    select_data[index++] = i;
-                }
-            } else {// sorted non btree primary index
-                size_t index_low = binary_search_index(column->data, column->length, low);
-                size_t index_high = binary_search_index(column->data, column->length, high);
-                // search_index returns the index that is greater or equal to target
-                while (column->data[index_low] == low) {
-                    index_low--;
-                }
-                while (column->data[index_low] < low) {
-                    index_low++;
-                }
-                while (column->data[index_high] == high) {
-                    index_high++;
-                }
-                while (column->data[index_high] > high) {
-                    index_high--;
-                }
-                for (size_t i = index_low; i <= index_high; i++) {
-                    select_data[index++] = i;
-                }
-            }
-        } else if (column->btree) {
-            long index_low = search_position(column->btree_root, low);
-            size_t index_high = search_position(column->btree_root, high);
-            // print_btree(column->btree_root, 0);
-                // search_position returns the position that is greater or equal to target
-            while (index_low >= 0 && column->index->values[index_low] >= low) {
-                index_low--;
-            }
-            while (column->index->values[index_low] < low) {
-                index_low++;
-            }
-            
-            while (index_high < column->length && column->index->values[index_high] <= high) {
-                index_high++;
-            }
-            while (column->index->values[index_high] > high) {
-                index_high--;
-            }
-            for (size_t i = index_low; i <= index_high && i < column->length; i++) {
-                select_data[index++] = column->index->positions[i];
-            }
 
-        } else if (column->sorted) {
-            size_t index_low = binary_search_index(column->index->values, column->length, low);
-            size_t index_high = binary_search_index(column->index->values, column->length, high);
-            // search_index returns the index that is greater or equal to target
-            while (column->index->values[index_low] == low) {
-                index_low--;
+                while (index_high < column->length && column->index->values[index_high] <= high)
+                {
+                    index_high++;
+                }
+                while (column->index->values[index_high] > high)
+                {
+                    index_high--;
+                }
+                for (size_t i = index_low; i <= index_high && i < column->length; i++)
+                {
+                    select_data[index++] = column->index->positions[i];
+                }
             }
-            while (column->index->values[index_low] < low) {
-                index_low++;
+            else
+            {
+                goto sequential_select;
             }
-            
-            while (column->index->values[index_high] == high) {
-                index_high++;
+        }
+        else if (column->sorted)
+        {
+            ColumnSelectType column_select_type = optimize(column, low, high);
+            if (column_select_type == RANDOM_ACCESS)
+            {
+                size_t index_low = binary_search_index(column->index->values, column->length, low);
+                size_t index_high = binary_search_index(column->index->values, column->length, high);
+                // search_index returns the index that is greater or equal to target
+                while (column->index->values[index_low] == low)
+                {
+                    index_low--;
+                }
+                while (column->index->values[index_low] < low)
+                {
+                    index_low++;
+                }
+
+                while (column->index->values[index_high] == high)
+                {
+                    index_high++;
+                }
+                while (column->index->values[index_high] > high)
+                {
+                    index_high--;
+                }
+                for (size_t i = index_low; i <= index_high; i++)
+                {
+                    select_data[index++] = column->index->positions[i];
+                }
             }
-            while (column->index->values[index_high] > high) {
-                index_high--;
+            else
+            {
+                goto sequential_select;
             }
-            for (size_t i = index_low; i <= index_high; i++) {
-                select_data[index++] = column->index->positions[i];
-            }
-        } else {
+        }
+        else
+        {
+        sequential_select:
             for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
             {
                 if (column->data[i] >= low && column->data[i] <= high)
@@ -774,10 +827,13 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     {
                         result_data += payload[i];
                     }
-                    if (gc1->column_pointer.result->num_tuples != 0) {
+                    if (gc1->column_pointer.result->num_tuples != 0)
+                    {
                         *avg_result = result_data * 1.0 / (1000 * gc1->column_pointer.result->num_tuples);
                         *avg_result *= 1000;
-                    } else {
+                    }
+                    else
+                    {
                         *avg_result = 0;
                     }
                     result->payload = avg_result;
@@ -1629,7 +1685,7 @@ int main(void)
         // TODO: move the following executions to server side
         persist_database();
         free_database();
-        exit(1);
+        exit(0);
     }
     return 0;
 }
