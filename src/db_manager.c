@@ -155,15 +155,7 @@ SelectType optimize(Column *column, int low, int high)
 	Histogram *hist = column->histogram;
 	int l = 0;
 	int r = NUM_BINS - 1;
-	//for (int i = 0; i < NUM_BINS; i++) {
-	//	printf("%d ", hist->values[i]);
-	//}
-	//printf("\n");
-	//for (int i = 0; i < NUM_BINS; i++) {
-	//	printf("%ld ", hist->counts[i]);
-	//}
-	//printf("\n");
-	//printf("%d %d\n", low, high);
+
 	for (; l < NUM_BINS; l++)
 	{
 		if (hist->values[l] >= low)
@@ -175,12 +167,13 @@ SelectType optimize(Column *column, int low, int high)
 			break;
 	}
 	r++;
+
 	size_t count = 0;
 	for (int i = l; i <= r; i++)
 	{
 		count += hist->counts[i];
 	}
-	//printf("Selectivity: %d %d %f\n",l, r, count * 1.0 / column->length);
+	printf("Selectivity: %f\n", count * 1.0 / column->length);
 	if (count * 1.0 / column->length < SELECTIVITY_THRES)
 	{
 		return RANDOM_ACCESS;
