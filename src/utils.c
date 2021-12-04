@@ -33,6 +33,23 @@ char *trim_newline(char *str)
     str[current] = '\0';
     return str;
 }
+
+char *replace_newline(char *str)
+{
+    int length = strlen(str);
+    int current = 0;
+    for (int i = 0; i < length; ++i)
+    {
+        if (!(str[i] == '\r' || str[i] == '\n'))
+        {
+            str[current++] = str[i];
+        }
+    }
+
+    // Write new null terminator
+    str[current] = ',';
+    return str;
+}
 /* removes space characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of space characters.

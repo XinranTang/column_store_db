@@ -258,6 +258,7 @@ typedef enum OperatorType
     SHUTDOWN,
     BATCH_START,
     BATCH_END,
+    JOIN,
 } OperatorType;
 
 typedef enum CreateType
@@ -284,6 +285,12 @@ typedef enum SelectType
     TWO_COLUMN,
 } SelectType;
 
+typedef enum JoinType
+{
+    NESTED_LOOP_JOIN,
+    HASH_JOIN,
+    GRACE_HASH_JOIN,
+} JoinType;
 /*
  * necessary fields for creation
  * "create_type" indicates what kind of object you are creating. 
@@ -355,6 +362,16 @@ typedef struct AggregateOperator
     GeneralizedColumn *gc2;
 } AggregateOperator;
 
+typedef struct JoinOperator
+{
+    char l_name[MAX_SIZE_NAME];
+    char r_name[MAX_SIZE_NAME];
+    GeneralizedColumn *gc1;
+    GeneralizedColumn *gc2;
+    char position1[MAX_SIZE_NAME];
+    char position2[MAX_SIZE_NAME];
+    JoinType joinType;
+} JoinOperator;
 /*
  * union type holding the fields of any operator
  */
@@ -367,6 +384,7 @@ typedef union OperatorFields
     FetchOperator fetch_operator;
     PrintOperator print_operator;
     AggregateOperator aggregate_operator;
+    JoinOperator join_operator;
 } OperatorFields;
 
 /*

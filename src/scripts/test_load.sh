@@ -1,0 +1,1 @@
+time /home/sherry/Desktop/cs165-2021-project/src/client < /cs165/staff_test/test04gen.dsl

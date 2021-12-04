@@ -23,6 +23,7 @@ typedef struct SearchQueueNode
 
 char *trim_newline(char *str);
 
+char *replace_newline(char *str);
 /**
  * trims parenthesis characters from a string (in place)
  **/

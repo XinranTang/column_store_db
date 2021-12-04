@@ -240,14 +240,14 @@ void execute_load(DbOperator *query, message *send_message)
                 return;
             }
 
-            // receive number_lines from client
-            size_t number_lines;
+            // receive file_size from client
+            size_t file_size[2];
             load_message_header.status = OK_WAIT_FOR_RESPONSE;
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
-            recv(query->client_fd, &(number_lines), sizeof(size_t), 0);
-            printf("Number of lines to load: %ld", number_lines);
+            recv(query->client_fd, &(file_size), 2 * sizeof(size_t), 0);
+
             // set table length capacity for current table
-            current_table->table_length_capacity = (number_lines - 1) * 2;
+            current_table->table_length_capacity = (file_size[1] - 1) * 2;
             for (size_t i = 0; i < current_table->col_count; i++)
             {
                 if (map_column(current_table, &current_table->columns[i]) == -1)
@@ -261,29 +261,36 @@ void execute_load(DbOperator *query, message *send_message)
             load_message_header.status = OK_WAIT_FOR_RESPONSE;
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
 
+            char* raw_data = malloc(file_size[0]); // TODO: check file size TODO: free
             char buffer[DEFAULT_QUERY_BUFFER_SIZE];
-            size_t column = 0;
+            int n;
+            while (1) {
+                n = recv(query->client_fd, buffer, DEFAULT_QUERY_BUFFER_SIZE, 0);
+                if (n <= 0) {
+                    break;
+                }
+                if ((strncmp(buffer, "break", 5))==0) break;
+
+                strcat(raw_data, buffer);
+            }
+            printf("Number of lines to load: %ld\n File size: %ld\n", file_size[1], file_size[0]);
+            
             size_t row = 0;
             // start receiving data body from the client
             // start loading line by line
-            while ((len = recv(query->client_fd, &(buffer), DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)
+            char *data = strtok(raw_data, ",");
+            
+            while (data != NULL)
             {
-                if ((strncmp(buffer, "break", 5)) == 0)
-                {
-                    printf("break:%s", buffer);
-                    break;
-                }
                 row++;
                 current_table->table_length++;
-                column = 0;
-                char *data = strtok(buffer, ",");
-                while (data)
-                {
+                for (size_t column = 0; column < current_table->col_count; column++) {
                     current_table->columns[column].data[row - 1] = atoi(data);
                     data = strtok(NULL, ",");
-                    column++;
                 }
             }
+            free(raw_data);
+
             // record the primary indexed column if exists
             // 1. find first primary index column
             // 2. build primary index
@@ -1286,6 +1293,10 @@ void execute_aggregate(DbOperator *query, message *send_message)
     add_context(result, client_context, query->operator_fields.aggregate_operator.intermediate);
 }
 
+void execute_join(DbOperator *query, message *send_message)
+{
+}
+
 void execute_print(DbOperator *query, message *send_message)
 {
     // find specified positions vector in client context
@@ -1502,6 +1513,10 @@ char *execute_DbOperator(DbOperator *query, message *send_message)
     {
         execute_batch_end(query->context, send_message);
     }
+    else if (query && query->type == JOIN)
+    {
+        execute_join(query, send_message);
+    }
     return "165";
 }
 
@@ -1563,9 +1578,13 @@ void handle_client(int client_socket)
             // TODO: Check
             // free DbOperator
             if (send_message.status != BATCH_WAIT)
+            {
                 free(query);
+            }
             if (send_message.status == OK_PRINT)
+            {
                 continue;
+            }
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
             strcpy(send_buffer, result);
