@@ -241,10 +241,10 @@ void execute_load(DbOperator *query, message *send_message)
             }
 
             // receive file_size from client
-            size_t file_size[2];
+            size_t file_size[3];
             load_message_header.status = OK_WAIT_FOR_RESPONSE;
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
-            recv(query->client_fd, &(file_size), 2 * sizeof(size_t), 0);
+            recv(query->client_fd, &(file_size), 3 * sizeof(size_t), 0);
 
             // set table length capacity for current table
             current_table->table_length_capacity = (file_size[1] - 1) * 2;
@@ -262,32 +262,37 @@ void execute_load(DbOperator *query, message *send_message)
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
 
             char* raw_data = malloc(file_size[0]); // TODO: check file size TODO: free
-            char buffer[DEFAULT_QUERY_BUFFER_SIZE];
-            int n;
-            while (1) {
-                n = recv(query->client_fd, buffer, DEFAULT_QUERY_BUFFER_SIZE, 0);
-                if (n <= 0) {
-                    break;
-                }
-                if ((strncmp(buffer, "break", 5))==0) break;
+            char* raw_data_ptr = raw_data;
+            size_t remain_data = file_size[0] - file_size[2];
 
-                strcat(raw_data, buffer);
+printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
+            while ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
+                
+                remain_data -= len;
+                raw_data_ptr += len;
+                //printf("recv %d bytes, remaining %ld bytes \n", len,remain_data);
             }
             printf("Number of lines to load: %ld\n File size: %ld\n", file_size[1], file_size[0]);
             
             size_t row = 0;
             // start receiving data body from the client
             // start loading line by line
-            char *data = strtok(raw_data, ",");
+            char *ptr, *save1 = NULL;
             
-            while (data != NULL)
+            ptr = strtok_r(raw_data, "\n", &save1);
+            
+            while (ptr != NULL)
             {
                 row++;
+                char *data, *save2 = NULL;
+                data = strtok_r(ptr, ",", &save2);
                 current_table->table_length++;
                 for (size_t column = 0; column < current_table->col_count; column++) {
+                    
                     current_table->columns[column].data[row - 1] = atoi(data);
-                    data = strtok(NULL, ",");
+                    data = strtok_r(NULL, ",", &save2);
                 }
+                ptr = strtok_r(NULL, "\n", &save1);
             }
             free(raw_data);
 

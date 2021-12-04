@@ -25,6 +25,7 @@ machine please look into this as a a source of error. */
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include "common.h"
 #include "message.h"
 #include "utils.h"
@@ -66,19 +67,6 @@ int connect_client()
     return client_socket;
 }
 
-void send_file(FILE *fp, int sockfd) {
-    char data[DEFAULT_STDIN_BUFFER_SIZE] = {0};
-    while(fgets(data, DEFAULT_STDIN_BUFFER_SIZE, fp) != NULL) {
-        if (send(sockfd, replace_newline(data), DEFAULT_STDIN_BUFFER_SIZE, 0) == -1) {
-            log_err("client failed to read file\n");
-            exit(1);
-        }
-        bzero(data, DEFAULT_STDIN_BUFFER_SIZE);
-    }
-    strcpy(data, "break");
-    send(sockfd, data, 5 * sizeof(char), 0);
-}
-
 /**
  * Getting Started Hint:
  *      What kind of protocol or structure will you use to deliver your results from the server to the client?
@@ -87,6 +75,17 @@ void send_file(FILE *fp, int sockfd) {
 **/
 int main(void)
 {
+    int ch = 0;
+    struct stat st;
+    size_t file_size[3];
+    // buffer to store data from file
+    char buffer[DEFAULT_STDIN_BUFFER_SIZE];
+    char *prefix = "";
+    char *output_str = NULL;
+    int len = 0;
+    long offset = 0;
+    char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
+    size_t remain_data;
     int client_socket = connect_client();
     if (client_socket < 0)
     {
@@ -98,19 +97,17 @@ int main(void)
 
     // Always output an interactive marker at the start of each command if the
     // input is from stdin. Do not output if piped in from file or from other fd
-    char *prefix = "";
+
     if (isatty(fileno(stdin)))
     {
         prefix = "db_client > ";
     }
 
-    char *output_str = NULL;
-    int len = 0;
 
     // Continuously loop and wait for input. At each iteration:
     // 1. output interactive marker
     // 2. read from stdin until eof.
-    char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
+
     send_message.payload = read_buffer;
     send_message.status = 0;
 
@@ -211,10 +208,9 @@ int main(void)
                         exit(1);
                     }
                     // count how many lines to load
-                    int ch = 0;
-                    struct stat st;
+
                     fstat(fileno(fp), &st);
-                    size_t file_size[2];
+
                     do {
                         ch = fgetc(fp);
                         if (ch == '\n') file_size[1]++;
@@ -222,6 +218,7 @@ int main(void)
                     if (ch != '\n' && file_size[1] != 0) file_size[1]++;
                     file_size[0] = st.st_size;
                     file_size[1]--;
+                    remain_data = file_size[0];
                     fclose(fp);
 
                     // start sending file data
@@ -230,17 +227,19 @@ int main(void)
                     // read header metadata
                     fp = fopen(file_name, "r");
                     free(file_name);
-                    // buffer to store data from file
-                    char buffer[DEFAULT_STDIN_BUFFER_SIZE];
+
                     // read file
                     fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp);
-                    send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
-
+                    
+                    len = send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
+                    offset = strlen(buffer) * sizeof(char);
+                    file_size[2] = offset;
+                    remain_data -= offset;
                     if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0)
                     {
                         if (recv_message.status == OK_WAIT_FOR_RESPONSE)
                         {
-                            send(client_socket, &file_size, 2 * sizeof(size_t), 0);
+                            send(client_socket, &file_size, 3 * sizeof(size_t), 0);
 
                             recv(client_socket, &(recv_message), sizeof(message), 0);
                             if (recv_message.status == OK_WAIT_FOR_RESPONSE)
@@ -249,9 +248,17 @@ int main(void)
                                 //
                                 // load data from file and insert them into current database
 
-                               send_file(fp, client_socket);
-                               fclose(fp);
+                               // send file
+                                //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", 0, offset, remain_data);
+                                   
+                                while (((len = sendfile(client_socket, fileno(fp), &offset, DEFAULT_STDIN_BUFFER_SIZE)) > 0) && remain_data > 0) {
+                                    remain_data -= len;
+                                    //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
+                                }
+                                fclose(fp);
                             }
+                            //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
+
                         }
                     }
                     else
