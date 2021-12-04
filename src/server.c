@@ -1319,16 +1319,12 @@ void execute_print(DbOperator *query, message *send_message)
     }
     print_len = results[0]->num_tuples;
 
-    // TODO: here send_buffer/payload is not assigned
-    send_message->length = query->operator_fields.print_operator.number_intermediates;
-    send_message->status = OK_WAIT_FOR_RESPONSE;
-    char break_signal[32 * send_message->length];
-    send_message->payload = break_signal;
-    send(query->client_fd, send_message, sizeof(message), 0);
+    char *print_chars = malloc(32 * send_message->length * print_len * sizeof(char));
+    char *print_chars_ptr = print_chars;
+
+    int len;
     for (size_t i = 0; i < print_len; i++)
     {
-        char print_chars[32 * send_message->length];
-        memset(print_chars, '\0', 32 * send_message->length);
         for (size_t j = 0; j < query->operator_fields.print_operator.number_intermediates; j++)
         {
             print_data = results[j]->payload;
@@ -1337,46 +1333,58 @@ void execute_print(DbOperator *query, message *send_message)
             {
                 int *print_int = (int *)print_data;
                 if (j == 0)
-                    sprintf(strlen(print_chars) + print_chars, "%d", print_int[i]);
+                    sprintf(print_chars_ptr, "%d", print_int[i]);
                 else
-                    sprintf(strlen(print_chars) + print_chars, ",%d", print_int[i]);
+                    sprintf(print_chars_ptr, ",%d", print_int[i]);
                 // printf("int %d",print_int[i]);
             }
             else if (data_type == LONG)
             {
                 size_t *print_long = (size_t *)print_data;
                 if (j == 0)
-                    sprintf(strlen(print_chars) + print_chars, "%ld", print_long[i]);
+                    sprintf(print_chars_ptr, "%ld", print_long[i]);
                 else
-                    sprintf(strlen(print_chars) + print_chars, ",%ld", print_long[i]);
+                    sprintf(print_chars_ptr, ",%ld", print_long[i]);
                 // printf("long %ld",print_long[i]);
             }
             else if (data_type == FLOAT)
             {
                 float *print_float = (float *)print_data;
                 if (j == 0)
-                    sprintf(strlen(print_chars) + print_chars, "%.2f", print_float[i]);
+                    sprintf(print_chars_ptr, "%.2f", print_float[i]);
                 else
-                    sprintf(strlen(print_chars) + print_chars, ",%.2f", print_float[i]);
+                    sprintf(print_chars_ptr, ",%.2f", print_float[i]);
                 // printf("float %.2f", print_float[i]);
             }
             else if (data_type == DOUBLE)
             {
                 double *print_double = (double *)print_data;
                 if (j == 0)
-                    sprintf(strlen(print_chars) + print_chars, "%.2lf", print_double[i]);
+                    sprintf(print_chars_ptr, "%.2lf", print_double[i]);
                 else
-                    sprintf(strlen(print_chars) + print_chars, ",%.2lf", print_double[i]);
+                    sprintf(print_chars_ptr, ",%.2lf", print_double[i]);
             }
+            print_chars_ptr = strlen(print_chars) + print_chars;
         }
-        send(query->client_fd, &print_chars, sizeof(print_chars), 0);
+        // send(query->client_fd, &print_chars, sizeof(print_chars), 0);
+        sprintf(print_chars_ptr, "\n");
+        print_chars_ptr++;
     }
 
-    memset(break_signal, '\0', 32 * send_message->length);
-    strcpy(break_signal, "break");
-    send(query->client_fd, &break_signal, strlen(break_signal) + 1, 0);
+    // TODO: here send_buffer/payload is not assigned
+    size_t str_len = strlen(print_chars);
+    send_message->length = str_len;
+    send_message->status = OK_WAIT_FOR_RESPONSE;
+    send(query->client_fd, send_message, sizeof(message), 0);
+    size_t offset = 0;
+    while (offset < str_len) {
+        len = send(query->client_fd, print_chars + offset, DEFAULT_QUERY_BUFFER_SIZE, 0);
+        offset += len;
+        // printf("sent %ld, remain %ld\n", offset, str_len - offset);
+    }
     // Just print for checking on server side
     send_message->status = OK_PRINT;
+    free(print_chars);
     free(results);
 }
 

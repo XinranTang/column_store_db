@@ -78,8 +78,6 @@ int main(void)
     int ch = 0;
     struct stat st;
     size_t file_size[3];
-    // buffer to store data from file
-    char buffer[DEFAULT_STDIN_BUFFER_SIZE];
     char *prefix = "";
     char *output_str = NULL;
     int len = 0;
@@ -103,7 +101,6 @@ int main(void)
         prefix = "db_client > ";
     }
 
-
     // Continuously loop and wait for input. At each iteration:
     // 1. output interactive marker
     // 2. read from stdin until eof.
@@ -118,7 +115,6 @@ int main(void)
             log_err("fgets failed.\n");
             break;
         }
-
         // Only process input that is greater than 1 character.
         // Convert to message and send the message and the
         // payload directly to the server.
@@ -128,6 +124,7 @@ int main(void)
         // So I seperate the case that a print() query is sent from the client
         if (strncmp(read_buffer, "print", 5) == 0)
         {
+
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1)
             {
@@ -145,31 +142,34 @@ int main(void)
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0)
             {
+                            // printf("waiting...\n");
                 if ((recv_message.status == OK_WAIT_FOR_RESPONSE) || (recv_message.status == OK_DONE))
                 {
+                                // printf("waiting...\n");
+                    // Always wait for server response (even if it is just an OK message)
+
                     // Calculate number of bytes in response package
-                    int num_bytes = 32 * recv_message.length;
-                    char payload[num_bytes];
+                    size_t print_num_bytes = recv_message.length;
+                    char * print_payload;
+                    if (print_num_bytes * sizeof(char) < DEFAULT_STDIN_BUFFER_SIZE) {
+                        print_payload = malloc(DEFAULT_STDIN_BUFFER_SIZE);
+                    } else {
+                        print_payload = malloc(print_num_bytes * sizeof(char));
+                    }
+                    size_t print_offset = 0;
+                                                    // printf("recv %ld, total %ld\n",print_offset, print_num_bytes);
                     // size_t num_print = recv_message.length;
                     // Receive the payload and print it out
-                    while ((len = recv(client_socket, payload, num_bytes, 0)) > 0)
+                    while (print_offset < print_num_bytes && ((len = recv(client_socket, print_payload + print_offset, DEFAULT_STDIN_BUFFER_SIZE, 0)) > 0) )
                     {
-                        if (strncmp(payload, "break", 5) == 0)
-                        {
-                            // printf("break: %s\n", payload);
-                            break;
-                        }
-                        int i = 0;
-                        for (; i < num_bytes; i++)
-                        {
-                            if (!payload[i])
-                            {
-                                payload[i] = '\0';
-                            }
-                        }
-                        printf("%s\n", payload);
+                        print_offset += len;
+                                // printf("recv %ld, remain %ld\n",print_offset, print_num_bytes - print_offset);
+                        // printf("%s\n", payload);
                         // memset(payload, '\0', 32 * recv_message.length);
                     }
+                    print_payload[print_num_bytes - 1] = '\0';
+                    printf("%s\n", print_payload);
+                    free(print_payload);
                 }
             }
         }
@@ -211,11 +211,14 @@ int main(void)
 
                     fstat(fileno(fp), &st);
 
-                    do {
+                    do
+                    {
                         ch = fgetc(fp);
-                        if (ch == '\n') file_size[1]++;
+                        if (ch == '\n')
+                            file_size[1]++;
                     } while (ch != EOF);
-                    if (ch != '\n' && file_size[1] != 0) file_size[1]++;
+                    if (ch != '\n' && file_size[1] != 0)
+                        file_size[1]++;
                     file_size[0] = st.st_size;
                     file_size[1]--;
                     remain_data = file_size[0];
@@ -227,12 +230,13 @@ int main(void)
                     // read header metadata
                     fp = fopen(file_name, "r");
                     free(file_name);
-
+                    // buffer to store data from file
+                    char buffer[DEFAULT_STDIN_BUFFER_SIZE];
                     // read file
                     fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp);
-                    
+
                     len = send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
-                    offset = strlen(buffer) * sizeof(char);
+                    offset = strlen(buffer);
                     file_size[2] = offset;
                     remain_data -= offset;
                     if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0)
@@ -248,17 +252,15 @@ int main(void)
                                 //
                                 // load data from file and insert them into current database
 
-                               // send file
-                                //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", 0, offset, remain_data);
-                                   
-                                while (((len = sendfile(client_socket, fileno(fp), &offset, DEFAULT_STDIN_BUFFER_SIZE)) > 0) && remain_data > 0) {
+                                // send file
+                                while (((len = sendfile(client_socket, fileno(fp), &offset, DEFAULT_STDIN_BUFFER_SIZE)) > 0) && remain_data > 0)
+                                {
                                     remain_data -= len;
-                                    //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
+                                    // printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
                                 }
                                 fclose(fp);
                             }
-                            //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
-
+                            // printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
                         }
                     }
                     else
