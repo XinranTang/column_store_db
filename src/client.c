@@ -75,7 +75,6 @@ int connect_client()
 **/
 int main(void)
 {
-    int ch = 0;
     struct stat st;
     size_t file_size[3];
     char *prefix = "";
@@ -142,34 +141,35 @@ int main(void)
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0)
             {
-                            // printf("waiting...\n");
+                // printf("waiting...\n");
                 if ((recv_message.status == OK_WAIT_FOR_RESPONSE) || (recv_message.status == OK_DONE))
                 {
-                                // printf("waiting...\n");
+                    // printf("waiting...\n");
                     // Always wait for server response (even if it is just an OK message)
 
                     // Calculate number of bytes in response package
                     size_t print_num_bytes = recv_message.length;
-                    char * print_payload;
-                    if (print_num_bytes * sizeof(char) < DEFAULT_STDIN_BUFFER_SIZE) {
-                        print_payload = malloc(DEFAULT_STDIN_BUFFER_SIZE);
-                    } else {
-                        print_payload = malloc(print_num_bytes * sizeof(char));
-                    }
+                    // TODO: check if size is enough
+                    char print_payload[4 * DEFAULT_STDIN_BUFFER_SIZE * DEFAULT_STDIN_BUFFER_SIZE];
+                    // if (print_num_bytes * sizeof(char) < DEFAULT_STDIN_BUFFER_SIZE) {
+                    //     print_payload = malloc(DEFAULT_STDIN_BUFFER_SIZE);
+                    // } else {
+                    //     print_payload  = malloc(print_num_bytes * sizeof(char));
+                    // }
                     size_t print_offset = 0;
-                                                    // printf("recv %ld, total %ld\n",print_offset, print_num_bytes);
+                    // printf("recv %ld, total %ld\n",print_offset, print_num_bytes);
                     // size_t num_print = recv_message.length;
                     // Receive the payload and print it out
-                    while (print_offset < print_num_bytes && ((len = recv(client_socket, print_payload + print_offset, DEFAULT_STDIN_BUFFER_SIZE, 0)) > 0) )
+                    while (print_offset < print_num_bytes && ((len = recv(client_socket, print_payload + print_offset, DEFAULT_STDIN_BUFFER_SIZE, 0)) > 0))
                     {
                         print_offset += len;
-                                // printf("recv %ld, remain %ld\n",print_offset, print_num_bytes - print_offset);
+                        // printf("recv %ld, remain %ld\n",print_offset, print_num_bytes - print_offset);
                         // printf("%s\n", payload);
                         // memset(payload, '\0', 32 * recv_message.length);
                     }
                     print_payload[print_num_bytes - 1] = '\0';
                     printf("%s\n", print_payload);
-                    free(print_payload);
+                    // free(print_payload);
                 }
             }
         }
@@ -193,7 +193,7 @@ int main(void)
             {
                 if (recv_message.status == OK_WAIT_FOR_RESPONSE)
                 {
-                    char *file_name = malloc((recv_message.length + 1) * sizeof(char));
+                    char file_name[DEFAULT_STDIN_BUFFER_SIZE];
                     recv(client_socket, file_name, recv_message.length, 0);
                     file_name[recv_message.length] = '\0';
                     FILE *fp = fopen(file_name, "r");
@@ -202,7 +202,7 @@ int main(void)
                     if (!fp)
                     {
                         cs165_log(stdout, "Cannot open file %s.\n", file_name);
-                        free(file_name);
+
                         send_message.status = FILE_NOT_FOUND;
                         send(client_socket, &(send_message), sizeof(message), 0);
                         exit(1);
@@ -211,30 +211,16 @@ int main(void)
 
                     fstat(fileno(fp), &st);
 
-                    do
-                    {
-                        ch = fgetc(fp);
-                        if (ch == '\n')
-                            file_size[1]++;
-                    } while (ch != EOF);
-                    if (ch != '\n' && file_size[1] != 0)
-                        file_size[1]++;
                     file_size[0] = st.st_size;
-                    file_size[1]--;
                     remain_data = file_size[0];
-                    fclose(fp);
-
                     // start sending file data
                     send_message.status = OK_WAIT_FOR_RESPONSE;
                     send(client_socket, &(send_message), sizeof(message), 0);
-                    // read header metadata
-                    fp = fopen(file_name, "r");
-                    free(file_name);
+
                     // buffer to store data from file
                     char buffer[DEFAULT_STDIN_BUFFER_SIZE];
-                    // read file
+                    // read file and send file header
                     fgets(buffer, DEFAULT_STDIN_BUFFER_SIZE, fp);
-
                     len = send(client_socket, &buffer, DEFAULT_STDIN_BUFFER_SIZE, 0);
                     offset = strlen(buffer);
                     file_size[2] = offset;

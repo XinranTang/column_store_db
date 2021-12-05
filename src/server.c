@@ -32,6 +32,7 @@
 #include "client_context.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
+#define DEFAULT_TABLE_LENGTH 550000
 #define THREAD 32
 #define QUEUE 256
 threadpool_t *pool;
@@ -247,7 +248,7 @@ void execute_load(DbOperator *query, message *send_message)
             recv(query->client_fd, &(file_size), 3 * sizeof(size_t), 0);
 
             // set table length capacity for current table
-            current_table->table_length_capacity = (file_size[1] - 1) * 2;
+            current_table->table_length_capacity = (DEFAULT_TABLE_LENGTH) * 2;
             for (size_t i = 0; i < current_table->col_count; i++)
             {
                 if (map_column(current_table, &current_table->columns[i]) == -1)
@@ -272,7 +273,7 @@ printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
                 raw_data_ptr += len;
                 //printf("recv %d bytes, remaining %ld bytes \n", len,remain_data);
             }
-            printf("Number of lines to load: %ld\n File size: %ld\n", file_size[1], file_size[0]);
+            printf("File size: %ld\n",  file_size[0]);
             
             size_t row = 0;
             // start receiving data body from the client
@@ -1319,7 +1320,7 @@ void execute_print(DbOperator *query, message *send_message)
     }
     print_len = results[0]->num_tuples;
 
-    char *print_chars = malloc(32 * send_message->length * print_len * sizeof(char));
+    char *print_chars = malloc(32 * query->operator_fields.print_operator.number_intermediates * print_len * sizeof(char));
     char *print_chars_ptr = print_chars;
 
     int len;
