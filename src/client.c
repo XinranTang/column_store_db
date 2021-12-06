@@ -308,6 +308,9 @@ int main(void)
                         // if(strncmp(payload, "165", 3) != 0) printf("%s\n", payload);
                     }
                 }
+                else if (recv_message.status == OK_SHUTDOWN) {
+                    exit(0);
+                }
             }
             else
             {

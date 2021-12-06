@@ -267,7 +267,7 @@ void execute_load(DbOperator *query, message *send_message)
             size_t remain_data = file_size[0] - file_size[2];
 
 printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
-            while ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
+            while ((remain_data > 0) & ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
                 
                 remain_data -= len;
                 raw_data_ptr += len;
@@ -371,8 +371,8 @@ void execute_select(DbOperator *query, message *send_message)
                 int *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
 
                 // insert selected positions to client context
@@ -393,8 +393,8 @@ void execute_select(DbOperator *query, message *send_message)
                 long *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
 
                 // insert selected positions to client context
@@ -415,8 +415,8 @@ void execute_select(DbOperator *query, message *send_message)
                 float *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
                 // insert selected positions to client context
                 ClientContext *client_context = query->context;
@@ -447,7 +447,7 @@ void execute_select(DbOperator *query, message *send_message)
                     long index_low = search_position(column->btree_root, low);
                     size_t index_high = search_position(column->btree_root, high);
                     // search_position returns the position that is greater or equal to target
-                    while (index_low >= 0 && column->data[index_low] >= low)
+                    while (index_low >= 0 & column->data[index_low] >= low)
                     {
                         index_low--;
                     }
@@ -455,7 +455,7 @@ void execute_select(DbOperator *query, message *send_message)
                     {
                         index_low++;
                     }
-                    while (index_high < column->length && column->data[index_high] <= high)
+                    while (index_high < column->length & column->data[index_high] <= high)
                     {
                         index_high++;
                     }
@@ -463,7 +463,7 @@ void execute_select(DbOperator *query, message *send_message)
                     {
                         index_high--;
                     }
-                    for (size_t i = index_low; i <= index_high && i < column->length; i++)
+                    for (size_t i = index_low; i <= index_high & i < column->length; i++)
                     {
                         select_data[index++] = i;
                     }
@@ -509,7 +509,7 @@ void execute_select(DbOperator *query, message *send_message)
                 size_t index_high = search_position(column->btree_root, high);
                 // print_btree(column->btree_root, 0);
                 // search_position returns the position that is greater or equal to target
-                while (index_low >= 0 && column->index->values[index_low] >= low)
+                while (index_low >= 0 & column->index->values[index_low] >= low)
                 {
                     index_low--;
                 }
@@ -518,7 +518,7 @@ void execute_select(DbOperator *query, message *send_message)
                     index_low++;
                 }
 
-                while (index_high < column->length && column->index->values[index_high] <= high)
+                while (index_high < column->length & column->index->values[index_high] <= high)
                 {
                     index_high++;
                 }
@@ -526,7 +526,7 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     index_high--;
                 }
-                for (size_t i = index_low; i <= index_high && i < column->length; i++)
+                for (size_t i = index_low; i <= index_high & i < column->length; i++)
                 {
                     select_data[index++] = column->index->positions[i];
                 }
@@ -577,8 +577,8 @@ void execute_select(DbOperator *query, message *send_message)
         sequential_select:
             for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
             {
-                if (column->data[i] >= low && column->data[i] <= high)
-                    select_data[index++] = i;
+                select_data[index] = i;
+                index += column->data[i] >= low & column->data[i] <= high;
             }
         }
 
@@ -632,8 +632,8 @@ void batch_execute_select(void *args)
                 int *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
 
                 // insert selected positions to client context
@@ -654,8 +654,8 @@ void batch_execute_select(void *args)
                 long *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
 
                 // insert selected positions to client context
@@ -676,8 +676,8 @@ void batch_execute_select(void *args)
                 float *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    if (values[i] >= low && values[i] <= high)
-                        select_data[index++] = positions[i];
+                    select_data[index] = positions[i];
+                    index += values[i] >= low & values[i] <= high;
                 }
                 // insert selected positions to client context
                 ClientContext *client_context = query->context;
@@ -701,8 +701,8 @@ void batch_execute_select(void *args)
 
         for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
         {
-            if (column->data[i] >= low && column->data[i] <= high)
-                select_data[index++] = i;
+            select_data[index] = i;
+            index += column->data[i] >= low & column->data[i] <= high;
         }
 
         // insert selected positions to client context
@@ -1184,8 +1184,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         int *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] > *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] > *result_data ? payload[i] : *result_data;
                         }
                     }
                     else
@@ -1194,8 +1193,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         int *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] < *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] < *result_data ? payload[i] : *result_data;
                         }
                     }
                     result->data_type = INT;
@@ -1211,8 +1209,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         long *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] > *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] > *result_data ? payload[i] : *result_data;
                         }
                     }
                     else
@@ -1221,8 +1218,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         long *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] < *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] < *result_data ? payload[i] : *result_data;
                         }
                     }
                     result->data_type = LONG;
@@ -1238,8 +1234,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         float *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] > *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] > *result_data ? payload[i] : *result_data;
                         }
                     }
                     else
@@ -1248,8 +1243,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                         float *payload = data1->payload;
                         for (size_t i = 0; i < data1->num_tuples; i++)
                         {
-                            if (payload[i] < *result_data)
-                                *result_data = payload[i];
+                            *result_data = payload[i] < *result_data ? payload[i] : *result_data;
                         }
                     }
                     result->data_type = FLOAT;
@@ -1267,8 +1261,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     int *payload = data1->data;
                     for (size_t i = 0; i < data1->length; i++)
                     {
-                        if (payload[i] > *result_data)
-                            *result_data = payload[i];
+                        *result_data = payload[i] > *result_data ? payload[i] : *result_data;
                     }
                 }
                 else
@@ -1277,8 +1270,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     int *payload = data1->data;
                     for (size_t i = 0; i < data1->length; i++)
                     {
-                        if (payload[i] < *result_data)
-                            *result_data = payload[i];
+                        *result_data = payload[i] < *result_data ? payload[i] : *result_data;
                     }
                 }
                 result->data_type = INT;
@@ -1435,9 +1427,7 @@ void execute_batch_end(ClientContext *client_context, message *send_message)
 {
     while (tasks > done)
     {
-        // printf("Sleep %d %d\n", tasks, done);
         sleep(0.01); // TODO: change sleep time
-        // printf("Sleep ENd %d %d\n", tasks, done);
     }
     // At this point, destroy the thread pool, 0 for immediate_shutdown
     if (threadpool_destroy(pool, 0) != 0)
@@ -1451,15 +1441,14 @@ void execute_batch_end(ClientContext *client_context, message *send_message)
     send_message->status = OK_DONE;
 }
 
-void execute_shutdown(ClientContext *client_context)
+void execute_shutdown(ClientContext *client_context, message *send_message)
 {
     // free client context
     deallocate(client_context);
     // TODO: move the following executions to server side
     persist_database();
     free_database();
-    // TODO: send message to client side
-    exit(0);
+    send_message->status = OK_SHUTDOWN;
 }
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
@@ -1517,7 +1506,7 @@ char *execute_DbOperator(DbOperator *query, message *send_message)
     }
     else if (query && query->type == SHUTDOWN)
     {
-        execute_shutdown(query->context);
+        execute_shutdown(query->context, send_message);
     }
     else if (query && query->type == BATCH_START)
     {
@@ -1598,6 +1587,10 @@ void handle_client(int client_socket)
             if (send_message.status == OK_PRINT)
             {
                 continue;
+            }
+            if (send_message.status == OK_SHUTDOWN) {
+                send(client_socket, &(send_message), sizeof(message), 0);
+                exit(0);
             }
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
