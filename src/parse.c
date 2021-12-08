@@ -838,54 +838,21 @@ DbOperator *parse_join(char *intermediates, char *query_command, message *send_m
             tokenizer_copy[last_char] = '\0';
         }
         char *raw_intermediate = next_token(&tokenizer_copy, &send_message->status);
-
-        if (send_message->status == INCORRECT_FORMAT)
-        {
-            free(to_free);
-            return NULL;
-        }
-        char *db_name = NULL;
-        char *table_name = NULL;
-        char *column_name = NULL;
-        if (strchr(raw_intermediate, '.'))
-        {
-            db_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            table_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            column_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            raw_intermediate = column_name;
-        }
-        GeneralizedColumn *generalized_column_1 = lookup_variables(db_name, table_name, column_name, raw_intermediate, client_context);
-        if (!generalized_column_1)
-        {
-            send_message->status = INCORRECT_FORMAT;
-            free(to_free);
-            return NULL;
-        }
-        char *position1 = next_token(&tokenizer_copy, &send_message->status);
+        GeneralizedColumn *generalized_column_1 = lookup_variables(NULL, NULL, NULL, raw_intermediate, client_context);
         raw_intermediate = next_token(&tokenizer_copy, &send_message->status);
-        if (send_message->status == INCORRECT_FORMAT)
-        {
-            free(to_free);
-            return NULL;
-        }
-        db_name = NULL;
-        table_name = NULL;
-        column_name = NULL;
-        if (strchr(raw_intermediate, '.'))
-        {
-            db_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            table_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            column_name = sep_token(&raw_intermediate, ".", &send_message->status);
-            raw_intermediate = column_name;
-        }
-        GeneralizedColumn *generalized_column_2 = lookup_variables(db_name, table_name, column_name, raw_intermediate, client_context);
-        if (!generalized_column_2)
+        GeneralizedColumn *generalized_column_2 = lookup_variables(NULL, NULL, NULL, raw_intermediate, client_context);
+        raw_intermediate = next_token(&tokenizer_copy, &send_message->status);
+        GeneralizedColumn *generalized_column_3 = lookup_variables(NULL, NULL, NULL, raw_intermediate, client_context);
+        raw_intermediate = next_token(&tokenizer_copy, &send_message->status);
+        GeneralizedColumn *generalized_column_4 = lookup_variables(NULL, NULL, NULL, raw_intermediate, client_context);
+
+        if (! generalized_column_1 || ! generalized_column_2 || ! generalized_column_3 || ! generalized_column_4)
         {
             send_message->status = INCORRECT_FORMAT;
             free(to_free);
             return NULL;
         }
-        char *position2 = next_token(&tokenizer_copy, &send_message->status);
+
         JoinType join_type;
         if (strncmp(tokenizer_copy, "nested-loop", 11) == 0)
         {
@@ -899,10 +866,11 @@ DbOperator *parse_join(char *intermediates, char *query_command, message *send_m
         dbo->type = JOIN;
         strcpy(dbo->operator_fields.join_operator.l_name, l_name);
         strcpy(dbo->operator_fields.join_operator.r_name, r_name);
-        strcpy(dbo->operator_fields.join_operator.position1, position1);
-        strcpy(dbo->operator_fields.join_operator.position2, position2);
-        dbo->operator_fields.join_operator.gc1 = generalized_column_1;
-        dbo->operator_fields.join_operator.gc2 = generalized_column_2;
+
+        dbo->operator_fields.join_operator.f1 = generalized_column_1->column_pointer.result;
+        dbo->operator_fields.join_operator.f2 = generalized_column_3->column_pointer.result;
+        dbo->operator_fields.join_operator.p1 = generalized_column_2->column_pointer.result;
+        dbo->operator_fields.join_operator.p2 = generalized_column_4->column_pointer.result;
         dbo->operator_fields.join_operator.joinType = join_type;
         // printf("Prinet: intermediate name is %ld\n", dbo->operator_fields.print_operator.number_intermediates);
         send_message->status = OK_DONE;

@@ -282,14 +282,13 @@ void execute_load(DbOperator *query, message *send_message)
             
             ptr = strtok_r(raw_data, "\n", &save1);
             
-            while (ptr != NULL)
+            while (ptr != NULL && ptr < raw_data_ptr)
             {
                 row++;
                 char *data, *save2 = NULL;
                 data = strtok_r(ptr, ",", &save2);
                 current_table->table_length++;
                 for (size_t column = 0; column < current_table->col_count; column++) {
-                    
                     current_table->columns[column].data[row - 1] = atoi(data);
                     data = strtok_r(NULL, ",", &save2);
                 }
@@ -633,7 +632,7 @@ void batch_execute_select(void *args)
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
                     select_data[index] = positions[i];
-                    index += values[i] >= low & values[i] <= high;
+                    index += (values[i] >= low) & (values[i] <= high);
                 }
 
                 // insert selected positions to client context
@@ -1293,6 +1292,43 @@ void execute_aggregate(DbOperator *query, message *send_message)
 
 void execute_join(DbOperator *query, message *send_message)
 {
+    ClientContext *client_context = query->context;
+    Result *f1 = query->operator_fields.join_operator.f1;
+    Result *f2 = query->operator_fields.join_operator.f2;
+    Result *p1 = query->operator_fields.join_operator.p1;
+    Result *p2 = query->operator_fields.join_operator.p2;
+
+    int* L = (int*)f1->payload;
+    int* R = (int*)f2->payload;
+    size_t * posL = (size_t*)p1->payload;
+    size_t * posR = (size_t*)p2->payload;
+    size_t lenL = p1->num_tuples;
+    size_t lenR = p2->num_tuples;
+    size_t *resL = malloc(lenR * lenL * sizeof(size_t));
+    size_t *resR = malloc(lenR * lenL * sizeof(size_t));
+    size_t k = 0;
+    for (size_t i = 0; i < lenL; i++){
+        for (size_t j = 0;j < lenR; j++){
+            if (L[i] == R[j]) {
+                resL[k]=posL[i];
+                resR[k++]=posR[j];
+            }
+        }
+    }
+    Result* resultL = malloc(sizeof(Result));
+    resultL->data_type = LONG;
+    resultL->num_tuples = k;
+    resultL->payload = resL;
+    add_context(resultL, client_context, query->operator_fields.join_operator.l_name);
+    Result* resultR = malloc(sizeof(Result));
+    resultR->data_type = LONG;
+    resultR->num_tuples = k;
+    resultR->payload = resR;
+    add_context(resultR, client_context, query->operator_fields.join_operator.r_name);
+    
+    send_message->status = OK_DONE;
+
+    
 }
 
 void execute_print(DbOperator *query, message *send_message)

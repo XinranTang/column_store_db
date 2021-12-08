@@ -366,10 +366,10 @@ typedef struct JoinOperator
 {
     char l_name[MAX_SIZE_NAME];
     char r_name[MAX_SIZE_NAME];
-    GeneralizedColumn *gc1;
-    GeneralizedColumn *gc2;
-    char position1[MAX_SIZE_NAME];
-    char position2[MAX_SIZE_NAME];
+    Result* f1;
+    Result* f2;
+    Result* p1;
+    Result* p2;
     JoinType joinType;
 } JoinOperator;
 /*
