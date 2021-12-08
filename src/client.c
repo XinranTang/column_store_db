@@ -163,7 +163,7 @@ int main(void)
                     while (print_offset < print_num_bytes && ((len = recv(client_socket, print_payload + print_offset, DEFAULT_STDIN_BUFFER_SIZE, 0)) > 0))
                     {
                         print_offset += len;
-                        // printf("recv %ld, remain %ld\n",print_offset, print_num_bytes - print_offset);
+                        //printf("recv %ld, remain %ld\n",print_offset, print_num_bytes - print_offset);
                         // printf("%s\n", payload);
                         // memset(payload, '\0', 32 * recv_message.length);
                     }
@@ -242,11 +242,11 @@ int main(void)
                                 while (((len = sendfile(client_socket, fileno(fp), &offset, DEFAULT_STDIN_BUFFER_SIZE)) > 0) && remain_data > 0)
                                 {
                                     remain_data -= len;
-                                    // printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
+                                    //printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
                                 }
                                 fclose(fp);
                             }
-                            // printf("sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
+                            //printf("end: sent %d bytes, offset is now %ld, remaining %ld bytes \n", len, offset, remain_data);
                         }
                     }
                     else
@@ -307,6 +307,9 @@ int main(void)
                         payload[num_bytes] = '\0';
                         // if(strncmp(payload, "165", 3) != 0) printf("%s\n", payload);
                     }
+                }
+                else if (recv_message.status == OK_SHUTDOWN) {
+                    exit(0);
                 }
             }
             else

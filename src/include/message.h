@@ -9,6 +9,7 @@ typedef enum message_status {
     OK_DONE,
     OK_PRINT,
     OK_WAIT_FOR_RESPONSE,
+    OK_SHUTDOWN,
     BATCH_WAIT,
     UNKNOWN_COMMAND,
     QUERY_UNSUPPORTED,
