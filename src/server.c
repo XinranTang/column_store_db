@@ -30,6 +30,7 @@
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
+#include "hash_table.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 #define DEFAULT_TABLE_LENGTH 550000
@@ -1307,13 +1308,32 @@ void execute_join(DbOperator *query, message *send_message)
     size_t *resL = malloc(lenR * lenL * sizeof(size_t));
     size_t *resR = malloc(lenR * lenL * sizeof(size_t));
     size_t k = 0;
-    for (size_t i = 0; i < lenL; i++){
-        for (size_t j = 0;j < lenR; j++){
-            if (L[i] == R[j]) {
-                resL[k]=posL[i];
-                resR[k++]=posR[j];
+
+    if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN) {
+
+        for (size_t i = 0; i < lenL; i++){
+            for (size_t j = 0;j < lenR; j++){
+                if (L[i] == R[j]) {
+                    resL[k]=posL[i];
+                    resR[k++]=posR[j];
+                }
             }
         }
+    } else { // HASH JOIN
+        size_t res[lenR];
+        hashtable* ht=malloc(sizeof(struct hashtable));
+        allocate_ht(ht, lenR);
+        for (size_t j = 0; j < lenR; j++) {
+            put_ht(ht, R[j], posR[j]);
+        }
+        for (size_t i = 0; i < lenL; i++) {
+            size_t res_len = get_ht(ht, L[i], res);
+            for (size_t j = 0; j < res_len; j++) {
+                resL[k] = posL[i];
+                resR[k++] = res[j];
+            }
+        }
+        deallocate_ht(ht);
     }
     Result* resultL = malloc(sizeof(Result));
     resultL->data_type = LONG;
