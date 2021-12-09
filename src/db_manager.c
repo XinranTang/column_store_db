@@ -11,8 +11,8 @@
 #include "persist.h"
 #include "btree.h"
 
-#define DB_MAX_TABLE_CAPACITY 10
-#define TABLE_INIT_LENGTH_CAPACITY 10
+#define DB_MAX_TABLE_CAPACITY 16
+#define TABLE_INIT_LENGTH_CAPACITY 1000000
 // In this class, there will always be only one active database at a time
 Db *current_db;
 

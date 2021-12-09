@@ -33,7 +33,7 @@
 #include "hash_table.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
-#define DEFAULT_TABLE_LENGTH 550000
+#define DEFAULT_TABLE_LENGTH 600000
 #define THREAD 32
 #define QUEUE 256
 threadpool_t *pool;
