@@ -77,20 +77,20 @@ Status create_db(const char *db_name)
 		column_path[3] = '-';
 		column_path[4] = 'r';
 		column_path[5] = ' ';
-		strcat(column_path, COLUMN_PATH);
+		strcat(column_path, CS165_DATABASE_PATH);
 		system(column_path);
 
-		char btree_path[MAX_COLUMN_PATH];
-		btree_path[0] = 'r';
-		btree_path[1] = 'm';
-		btree_path[2] = ' ';
-		btree_path[3] = '-';
-		btree_path[4] = 'r';
-		btree_path[5] = ' ';
-		strcat(btree_path, BTREE_PATH);
-		system(btree_path);
+		// char btree_path[MAX_COLUMN_PATH];
+		// btree_path[0] = 'r';
+		// btree_path[1] = 'm';
+		// btree_path[2] = ' ';
+		// btree_path[3] = '-';
+		// btree_path[4] = 'r';
+		// btree_path[5] = ' ';
+		// strcat(btree_path, BTREE_PATH);
+		// system(btree_path);
 
-		free_database();
+		// free_database();
 	}
 
 	// create new database
