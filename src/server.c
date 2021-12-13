@@ -80,7 +80,6 @@ void execute_create(DbOperator *query, message *send_message)
         Status create_status;
         create_column(query->operator_fields.create_operator.table,
                       query->operator_fields.create_operator.name,
-                      query->operator_fields.create_operator.sorted,
                       &create_status);
         if (create_status.code != OK)
         {
@@ -1645,7 +1644,7 @@ void handle_client(int client_socket)
                 continue;
             }
             if (send_message.status == OK_SHUTDOWN) {
-                send(client_socket, &(send_message), sizeof(message), 0);
+                // send(client_socket, &(send_message), sizeof(message), 0);
                 exit(0);
             }
             send_message.length = strlen(result);

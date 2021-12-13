@@ -42,11 +42,13 @@ int load_database()
             fread(current_column, sizeof(Column), 1, fp);
             if (current_column->clustered)
             {
+                // printf("clustered: %s\n", current_column->name);
                 current_column->histogram = malloc(sizeof(Histogram));
                 fread(current_column->histogram, sizeof(Histogram), 1, fp);
             }
             if ((!current_column->clustered) && (current_column->btree || current_column->sorted))
             {
+                // printf("un_clustered: %s\n", current_column->name);
                 current_column->histogram = malloc(sizeof(Histogram));
                 fread(current_column->histogram, sizeof(Histogram), 1, fp);
                 current_column->index = malloc(sizeof(ColumnIndex));

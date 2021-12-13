@@ -86,6 +86,7 @@ int main(void)
     int client_socket = connect_client();
     if (client_socket < 0)
     {
+        // printf("line 89\n");
         exit(1);
     }
 
@@ -205,6 +206,7 @@ int main(void)
 
                         send_message.status = FILE_NOT_FOUND;
                         send(client_socket, &(send_message), sizeof(message), 0);
+                                // printf("line 209\n");
                         exit(1);
                     }
                     // count how many lines to load
@@ -260,6 +262,7 @@ int main(void)
                         if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
                             (int)recv_message.length > 0)
                         {
+                            // printf("file loaded\n");
                             // Calculate number of bytes in response package
                             int num_bytes = (int)recv_message.length;
                             char payload[num_bytes + 1];
@@ -309,6 +312,7 @@ int main(void)
                     }
                 }
                 else if (recv_message.status == OK_SHUTDOWN) {
+                    // printf("SHUTDOWN\n");
                     exit(0);
                 }
             }
@@ -316,16 +320,20 @@ int main(void)
             {
                 if (len < 0)
                 {
-                    // log_err("Failed to receive message.\n");
+                    //log_err("Failed to receive message.\n");
+                    exit(1);
                 }
                 else
                 {
-                    // log_info("-- Server closed connection\n");
+                    //log_info("-- Server closed connection\n");
+                    exit(0);
                 }
-                exit(1);
+                        // printf("line 329\n");
+
             }
         }
     }
-    close(client_socket);
+    // close(client_socket);
+        // printf("line 335\n");
     return 0;
 }

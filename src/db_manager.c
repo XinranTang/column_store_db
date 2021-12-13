@@ -79,7 +79,7 @@ Status create_db(const char *db_name)
 		column_path[5] = ' ';
 		strcat(column_path, CS165_DATABASE_PATH);
 		system(column_path);
-
+		mkdir(CS165_DATABASE_PATH, 0600);
 		// char btree_path[MAX_COLUMN_PATH];
 		// btree_path[0] = 'r';
 		// btree_path[1] = 'm';
@@ -90,18 +90,19 @@ Status create_db(const char *db_name)
 		// strcat(btree_path, BTREE_PATH);
 		// system(btree_path);
 
-		// free_database();
+		free_database();
 	}
 
 	// create new database
-	current_db = malloc(sizeof(*current_db));
+	current_db = malloc(sizeof(Db));
 	// create new db attributes
 	strcpy(current_db->name, db_name);
 	current_db->tables_capacity = DB_MAX_TABLE_CAPACITY;
 	current_db->tables_size = 0;
 	current_db->tables = malloc(current_db->tables_capacity * sizeof(Table));
 	// TODO: create catalog file for database
-
+	printf("database freed\n");
+	printf("new db: %s\n", current_db->name);
 	// set return status code and message
 	ret_status.code = OK;
 	return ret_status;
@@ -110,7 +111,7 @@ Status create_db(const char *db_name)
 /*
  * create a column
  */
-Column *create_column(Table *table, char *name, bool sorted, Status *ret_status)
+Column *create_column(Table *table, char *name, Status *ret_status)
 {
 	// Check if current table has col num == col capacity
 	if (table->col_count == table->col_capacity)
@@ -126,7 +127,7 @@ Column *create_column(Table *table, char *name, bool sorted, Status *ret_status)
 	table->col_count++;
 	// Assign values to column attributes
 	strcpy(column->name, name);
-	column->sorted = sorted;
+	column->sorted = false;
 	column->length = table->table_length;
 	column->btree = false;
 	column->clustered = false;
