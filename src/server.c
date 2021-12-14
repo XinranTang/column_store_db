@@ -761,6 +761,7 @@ void execute_fetch(DbOperator *query, message *send_message)
     result->num_tuples = positions_len;
     result->payload = fetch_data;
     add_context(result, client_context, query->operator_fields.fetch_operator.intermediate);
+    free(generalized_column);
     send_message->status = OK_DONE;
 }
 
@@ -897,6 +898,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                 result->payload = result_data;
                 result->num_tuples = 1;
             }
+            free(gc1);
         }
     }
     else if (agg_type == ADD || agg_type == SUB)
@@ -1090,6 +1092,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     result->data_type = FLOAT;
                     result->payload = payload;
                 }
+                free(gc2);
             }
         }
         else
@@ -1142,6 +1145,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                     result->data_type = FLOAT;
                     result->payload = payload;
                 }
+                free(gc1);
             }
             else
             { // COLUMN COLUMN
@@ -1163,6 +1167,8 @@ void execute_aggregate(DbOperator *query, message *send_message)
                 result->num_tuples = data2->length;
                 result->data_type = LONG;
                 result->payload = payload;
+                free(gc1);
+                free(gc2);
             }
         }
     }
@@ -1275,6 +1281,7 @@ void execute_aggregate(DbOperator *query, message *send_message)
                 result->data_type = INT;
                 result->payload = result_data;
                 result->num_tuples = 1;
+                free(gc1);
             }
         }
         else
@@ -1364,6 +1371,7 @@ void execute_print(DbOperator *query, message *send_message)
         char *intermediate = intermediates[j];
         GeneralizedColumn *generalized_column = lookup_variables(NULL, NULL, NULL, intermediate, client_context);
         results[j] = generalized_column->column_pointer.result;
+        free(generalized_column);
     }
     print_len = results[0]->num_tuples;
 

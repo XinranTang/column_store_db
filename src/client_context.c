@@ -134,6 +134,7 @@ void add_context(Result* result, ClientContext* client_context, char* name) {
                 // free memory
                 if (root->generalized_column.column_type == RESULT) {
                     free(root->generalized_column.column_pointer.result->payload);
+                    free(root->generalized_column.column_pointer.result);
                 }
                 // TODO: check how to free column
                 else if (root->generalized_column.column_type == COLUMN) {
