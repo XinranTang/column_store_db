@@ -36,7 +36,6 @@ void deallocate_btree(BTNode *root)
         deallocate_btree(root->children[i]);
     }
     free(root->values);
-    free(root->positions);
     free(root->children);
     return;
 }
@@ -414,7 +413,6 @@ BTNode *load_btree_inner(int level, FILE* fp) {
     BTNode *root = malloc(sizeof(BTNode));
     fread(root, sizeof(BTNode), 1, fp);
     root->values = malloc(MAX_KEYS * sizeof(int));
-    root->positions = malloc(MAX_KEYS * sizeof(size_t));
     fread(root->values, root->num_values * sizeof(int), 1, fp);
     if (root->isLeaf) {
         root->positions = malloc(MAX_KEYS * sizeof(size_t));
