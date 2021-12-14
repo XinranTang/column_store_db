@@ -259,6 +259,7 @@ DbOperator *parse_create_db(char *create_arguments, message *send_message)
  **/
 DbOperator *parse_create(char *create_arguments, message *send_message)
 {
+    cs165_log(stdout, "QUERY: %s", create_arguments);
     DbOperator *dbo = NULL;
     char *tokenizer_copy, *to_free;
     // Since strsep destroys input, we create a copy of our input.
@@ -382,6 +383,7 @@ DbOperator *parse_load(char *query_command, message *send_message)
 
 DbOperator *parse_fetch(char *intermediate, char *query_command, message *send_message)
 {
+    cs165_log(stdout, "QUERY: %s", query_command);
     char *token = NULL;
     // check for leading '('
     if (strncmp(query_command, "(", 1) == 0)
@@ -923,13 +925,14 @@ DbOperator *parse_command(char *query_command, message *send_message, int client
         handle = NULL;
     }
 
-    cs165_log(stdout, "QUERY: %s    ", query_command);
+
 
     // by default, set the status to acknowledge receipt of command,
     //   indication to client to now wait for the response from the server.
     //   Note, some commands might want to relay a different status back to the client.
     send_message->status = OK_WAIT_FOR_RESPONSE;
     query_command = trim_whitespace(query_command);
+    //cs165_log(stdout, "QUERY: %s", query_command);
     // check what command is given.
     if (strncmp(query_command, "create", 6) == 0)
     {
