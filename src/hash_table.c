@@ -82,7 +82,7 @@ int put_ht(hashtable* ht, keyType key, valType value) { // O(1) for put
 // }
 size_t get_ht(hashtable* ht, keyType key, valType* res) { // O(K) for get, K is the length of entry
     struct bucket* root = ht->entries[hash_function_ht(key) % ht->size];
-    printf("%d\n",hash_function_ht(key) % ht->size);
+    // printf("%d\n",hash_function_ht(key) % ht->size);
     size_t i = 0;
     while(root != NULL){
         if(root->key == key){
