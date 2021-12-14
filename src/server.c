@@ -761,7 +761,6 @@ void execute_fetch(DbOperator *query, message *send_message)
     result->num_tuples = positions_len;
     result->payload = fetch_data;
     add_context(result, client_context, query->operator_fields.fetch_operator.intermediate);
-    free(generalized_column);
     send_message->status = OK_DONE;
 }
 
@@ -1371,7 +1370,6 @@ void execute_print(DbOperator *query, message *send_message)
         char *intermediate = intermediates[j];
         GeneralizedColumn *generalized_column = lookup_variables(NULL, NULL, NULL, intermediate, client_context);
         results[j] = generalized_column->column_pointer.result;
-        free(generalized_column);
     }
     print_len = results[0]->num_tuples;
 
