@@ -33,7 +33,7 @@
 #include "hash_table.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
-#define DEFAULT_TABLE_LENGTH 6000000
+#define DEFAULT_TABLE_LENGTH 51000000
 #define THREAD 32
 #define QUEUE 256
 threadpool_t *pool;
@@ -370,8 +370,9 @@ void execute_select(DbOperator *query, message *send_message)
                 int *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    select_data[index] = positions[i];
-                    index += (values[i] >= low) & (values[i] <= high);
+                    // select_data[index] = positions[i];
+                    // index += (values[i] >= low) & (values[i] <= high);
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
                 }
 
                 // insert selected positions to client context
@@ -392,8 +393,9 @@ void execute_select(DbOperator *query, message *send_message)
                 long *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    select_data[index] = positions[i];
-                    index += (values[i] >= low) & (values[i] <= high);
+                    // select_data[index] = positions[i];
+                    // index += (values[i] >= low) & (values[i] <= high);
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
                 }
 
                 // insert selected positions to client context
@@ -414,8 +416,9 @@ void execute_select(DbOperator *query, message *send_message)
                 float *values = value_vector->payload;
                 for (size_t i = 0; i < position_vector->num_tuples; i++)
                 {
-                    select_data[index] = positions[i];
-                    index += (values[i] >= low) & (values[i] <= high);
+                    // select_data[index] = positions[i];
+                    // index += (values[i] >= low) & (values[i] <= high);
+                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
                 }
                 // insert selected positions to client context
                 ClientContext *client_context = query->context;
@@ -446,7 +449,7 @@ void execute_select(DbOperator *query, message *send_message)
                     long index_low = search_position(column->btree_root, low);
                     size_t index_high = search_position(column->btree_root, high);
                     // search_position returns the position that is greater or equal to target
-                    while ((index_low >= 0) & (column->data[index_low] >= low))
+                    while ((index_low >= 0) && (column->data[index_low] >= low))
                     {
                         index_low--;
                     }
@@ -454,7 +457,7 @@ void execute_select(DbOperator *query, message *send_message)
                     {
                         index_low++;
                     }
-                    while ((index_high < column->length) & (column->data[index_high] <= high))
+                    while ((index_high < column->length) && (column->data[index_high] <= high))
                     {
                         index_high++;
                     }
@@ -462,7 +465,7 @@ void execute_select(DbOperator *query, message *send_message)
                     {
                         index_high--;
                     }
-                    for (size_t i = index_low; (i <= index_high) & (i < column->length); i++)
+                    for (size_t i = index_low; (i <= index_high) && (i < column->length); i++)
                     {
                         select_data[index++] = i;
                     }
@@ -508,7 +511,7 @@ void execute_select(DbOperator *query, message *send_message)
                 size_t index_high = search_position(column->btree_root, high);
                 // print_btree(column->btree_root, 0);
                 // search_position returns the position that is greater or equal to target
-                while ((index_low >= 0) & (column->index->values[index_low] >= low))
+                while ((index_low >= 0) && (column->index->values[index_low] >= low))
                 {
                     index_low--;
                 }
@@ -517,7 +520,7 @@ void execute_select(DbOperator *query, message *send_message)
                     index_low++;
                 }
 
-                while ((index_high < column->length) & (column->index->values[index_high] <= high))
+                while ((index_high < column->length) && (column->index->values[index_high] <= high))
                 {
                     index_high++;
                 }
@@ -525,7 +528,7 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     index_high--;
                 }
-                for (size_t i = index_low; (i <= index_high) & (i < column->length); i++)
+                for (size_t i = index_low; (i <= index_high) && (i < column->length); i++)
                 {
                     select_data[index++] = column->index->positions[i];
                 }
@@ -576,8 +579,9 @@ void execute_select(DbOperator *query, message *send_message)
         sequential_select:
             for (size_t i = 0; i < query->operator_fields.select_operator.column_length; i++)
             {
-                select_data[index] = i;
-                index += (column->data[i] >= low) & (column->data[i] <= high);
+                // select_data[index] = i;
+                // index += (column->data[i] >= low) & (column->data[i] <= high);
+                if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
             }
         }
 

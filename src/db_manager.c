@@ -162,6 +162,7 @@ void create_histogram(int *values, Column *column)
 
 SelectType optimize(Column *column, int low, int high)
 {
+	return RANDOM_ACCESS;
 	Histogram *hist = column->histogram;
 	int l = 0;
 	int r = NUM_BINS - 1;
