@@ -33,7 +33,7 @@
 #include "hash_table.h"
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
-#define DEFAULT_TABLE_LENGTH 51000000
+#define DEFAULT_TABLE_LENGTH 5000000
 #define THREAD 32
 #define QUEUE 256
 threadpool_t *pool;
@@ -246,9 +246,9 @@ void execute_load(DbOperator *query, message *send_message)
             load_message_header.status = OK_WAIT_FOR_RESPONSE;
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
             recv(query->client_fd, &(file_size), 3 * sizeof(size_t), 0);
-
+            file_size[1] = (file_size[0] / current_table->col_count) / sizeof(int);
             // set table length capacity for current table
-            current_table->table_length_capacity = (DEFAULT_TABLE_LENGTH) * 2;
+            current_table->table_length_capacity = file_size[1] * 2;
             for (size_t i = 0; i < current_table->col_count; i++)
             {
                 if (map_column(current_table, &current_table->columns[i]) == -1)
