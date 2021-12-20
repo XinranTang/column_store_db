@@ -267,7 +267,13 @@ void execute_load(DbOperator *query, message *send_message)
             size_t remain_data = file_size[0] - file_size[2];
 
 //printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
-            while ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
+            while ((remain_data >= DEFAULT_QUERY_BUFFER_SIZE) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
+                
+                remain_data -= len;
+                raw_data_ptr += len;
+                //printf("recv %d bytes, remaining %ld bytes \n", len,remain_data);
+            }
+            if ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, remain_data, 0)) > 0)) {
                 
                 remain_data -= len;
                 raw_data_ptr += len;
