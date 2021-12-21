@@ -83,6 +83,14 @@ typedef struct BTNode
     struct BTNode **children;
 } BTNode;
 
+typedef struct Partition
+{
+    size_t p_capacity;
+    size_t p_len;
+    int *values;
+    size_t *positions;
+} Partition;
+
 typedef struct Column
 {
     char name[MAX_SIZE_NAME];

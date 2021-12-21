@@ -36,6 +36,8 @@
 #define DEFAULT_TABLE_LENGTH 5000000
 #define THREAD 32
 #define QUEUE 256
+#define CACHE_SIZE_THRESHOLD 1000 // for 32 KB L1 cache to store the hash table
+#define NUM_PARTITIONS 7 // = 32KB / 4KB - 1 = 7
 threadpool_t *pool;
 int tasks = 0, done = 0;
 pthread_mutex_t lock;
@@ -262,39 +264,42 @@ void execute_load(DbOperator *query, message *send_message)
             load_message_header.status = OK_WAIT_FOR_RESPONSE;
             send(query->client_fd, &(load_message_header), sizeof(load_message_header), 0);
 
-            char* raw_data = malloc(file_size[0]); // TODO: check file size TODO: free
-            char* raw_data_ptr = raw_data;
+            char *raw_data = malloc(file_size[0]); // TODO: check file size TODO: free
+            char *raw_data_ptr = raw_data;
             size_t remain_data = file_size[0] - file_size[2];
 
-//printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
-            while ((remain_data >= DEFAULT_QUERY_BUFFER_SIZE) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0)) {
-                
+            //printf("recv %d bytes, remaining %ld bytes \n", 0, remain_data);
+            while ((remain_data >= DEFAULT_QUERY_BUFFER_SIZE) && ((len = recv(query->client_fd, raw_data_ptr, DEFAULT_QUERY_BUFFER_SIZE, 0)) > 0))
+            {
+
                 remain_data -= len;
                 raw_data_ptr += len;
                 //printf("recv %d bytes, remaining %ld bytes \n", len,remain_data);
             }
-            if ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, remain_data, 0)) > 0)) {
-                
+            if ((remain_data > 0) && ((len = recv(query->client_fd, raw_data_ptr, remain_data, 0)) > 0))
+            {
+
                 remain_data -= len;
                 raw_data_ptr += len;
                 //printf("recv %d bytes, remaining %ld bytes \n", len,remain_data);
             }
-            printf("File size: %ld\n",  file_size[0]);
-            
+            printf("File size: %ld\n", file_size[0]);
+
             size_t row = 0;
             // start receiving data body from the client
             // start loading line by line
             char *ptr, *save1 = NULL;
-            
+
             ptr = strtok_r(raw_data, "\n", &save1);
-            
+
             while (ptr != NULL && ptr < raw_data_ptr)
             {
                 row++;
                 char *data, *save2 = NULL;
                 data = strtok_r(ptr, ",", &save2);
                 current_table->table_length++;
-                for (size_t column = 0; column < current_table->col_count; column++) {
+                for (size_t column = 0; column < current_table->col_count; column++)
+                {
                     current_table->columns[column].data[row - 1] = atoi(data);
                     data = strtok_r(NULL, ",", &save2);
                 }
@@ -378,7 +383,8 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     // select_data[index] = positions[i];
                     // index += (values[i] >= low) & (values[i] <= high);
-                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                    if (values[i] >= low && values[i] <= high)
+                        select_data[index++] = positions[i];
                 }
 
                 // insert selected positions to client context
@@ -401,7 +407,8 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     // select_data[index] = positions[i];
                     // index += (values[i] >= low) & (values[i] <= high);
-                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                    if (values[i] >= low && values[i] <= high)
+                        select_data[index++] = positions[i];
                 }
 
                 // insert selected positions to client context
@@ -424,7 +431,8 @@ void execute_select(DbOperator *query, message *send_message)
                 {
                     // select_data[index] = positions[i];
                     // index += (values[i] >= low) & (values[i] <= high);
-                    if (values[i] >= low && values[i] <= high) select_data[index++] = positions[i];
+                    if (values[i] >= low && values[i] <= high)
+                        select_data[index++] = positions[i];
                 }
                 // insert selected positions to client context
                 ClientContext *client_context = query->context;
@@ -587,7 +595,8 @@ void execute_select(DbOperator *query, message *send_message)
             {
                 // select_data[index] = i;
                 // index += (column->data[i] >= low) & (column->data[i] <= high);
-                if (column->data[i] >= low && column->data[i] <= high) select_data[index++] = i;
+                if (column->data[i] >= low && column->data[i] <= high)
+                    select_data[index++] = i;
             }
         }
 
@@ -1314,56 +1323,190 @@ void execute_join(DbOperator *query, message *send_message)
     Result *p1 = query->operator_fields.join_operator.p1;
     Result *p2 = query->operator_fields.join_operator.p2;
 
-    int* L = (int*)f1->payload;
-    int* R = (int*)f2->payload;
-    size_t * posL = (size_t*)p1->payload;
-    size_t * posR = (size_t*)p2->payload;
+    int *L = (int *)f1->payload;
+    int *R = (int *)f2->payload;
+    size_t *posL = (size_t *)p1->payload;
+    size_t *posR = (size_t *)p2->payload;
     size_t lenL = p1->num_tuples;
     size_t lenR = p2->num_tuples;
     size_t *resL = malloc(lenR * lenL * sizeof(size_t));
     size_t *resR = malloc(lenR * lenL * sizeof(size_t));
     size_t k = 0;
 
-    if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN) {
+    if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN)
+    {
 
-        for (size_t i = 0; i < lenL; i++){
-            for (size_t j = 0;j < lenR; j++){
-                if (L[i] == R[j]) {
-                    resL[k]=posL[i];
-                    resR[k++]=posR[j];
+        for (size_t i = 0; i < lenL; i++)
+        {
+            for (size_t j = 0; j < lenR; j++)
+            {
+                if (L[i] == R[j])
+                {
+                    resL[k] = posL[i];
+                    resR[k++] = posR[j];
                 }
             }
         }
-    } else { // HASH JOIN
-        size_t res[lenR];
-        hashtable* ht=malloc(sizeof(struct hashtable));
-        allocate_ht(ht, lenR);
-        for (size_t j = 0; j < lenR; j++) {
-            put_ht(ht, R[j], posR[j]);
-        }
-        for (size_t i = 0; i < lenL; i++) {
-            size_t res_len = get_ht(ht, L[i], res);
-            for (size_t j = 0; j < res_len; j++) {
-                resL[k] = posL[i];
-                resR[k++] = res[j];
-            }
-        }
-        deallocate_ht(ht);
     }
-    Result* resultL = malloc(sizeof(Result));
+    else
+    { // HASH JOIN
+        if (lenL <= CACHE_SIZE_THRESHOLD || lenR <= CACHE_SIZE_THRESHOLD)
+        {
+            // always hash on the small column
+            hashtable *ht = malloc(sizeof(struct hashtable));
+            // compare and swap
+            if (lenR <= lenL)
+            {
+                size_t res[lenR];
+                allocate_ht(ht, lenR);
+                for (size_t j = 0; j < lenR; j++)
+                {
+                    put_ht(ht, R[j], posR[j]);
+                }
+                for (size_t i = 0; i < lenL; i++)
+                {
+                    size_t res_len = get_ht(ht, L[i], res);
+                    for (size_t j = 0; j < res_len; j++)
+                    {
+                        resL[k] = posL[i];
+                        resR[k++] = res[j];
+                    }
+                }
+            }
+            else
+            {
+                size_t res[lenL];
+                allocate_ht(ht, lenL);
+                for (size_t j = 0; j < lenL; j++)
+                {
+                    put_ht(ht, L[j], posL[j]);
+                }
+                for (size_t i = 0; i < lenR; i++)
+                {
+                    size_t res_len = get_ht(ht, R[i], res);
+                    for (size_t j = 0; j < res_len; j++)
+                    {
+                        resR[k] = posR[i];
+                        resL[k++] = res[j];
+                    }
+                }
+            }
+            deallocate_ht(ht);
+        }
+        else
+        {
+            // GRACE HASH JOIN
+            // 1. find ranges
+            // find max value in L
+            int max;
+	        max = L[0];
+	        for(int t = 1;t < lenL; t++)
+            {
+                if(L[t] > max) max = L[t];
+	        }
+            int p_div = max / (NUM_PARTITIONS-1); // #_p = value / p_div
+            size_t capacity = lenL / NUM_PARTITIONS;
+            // TODO: free partitions
+            Partition *partitionsL = malloc(NUM_PARTITIONS * sizeof(Partition));
+            Partition *partitionsR = malloc(NUM_PARTITIONS * sizeof(Partition));
+            for (int i = 0; i < NUM_PARTITIONS; i++) {
+                partitionsL[i].p_capacity = capacity;
+                partitionsL[i].p_len = 0;
+                partitionsL[i].values = malloc(capacity * sizeof(int));
+                partitionsL[i].positions = malloc(capacity * sizeof(size_t));
+                partitionsR[i].p_capacity = capacity;
+                partitionsR[i].p_len = 0;
+                partitionsR[i].values = malloc(capacity * sizeof(int));
+                partitionsR[i].positions = malloc(capacity * sizeof(size_t));
+            }
+
+            // 2. build partitions
+            for (size_t j = 0; j < lenL; j++)
+            {
+                int index_p = L[j] / p_div;
+                partitionsL[index_p].values[partitionsL[index_p].p_len] = L[j];
+                partitionsL[index_p].positions[partitionsL[index_p].p_len] = j;
+                partitionsL[index_p].p_len++;
+                if (partitionsL[index_p].p_len >= partitionsL[index_p].p_capacity) {
+                    // reallocate and increment size by twice
+                    partitionsL[index_p].p_capacity *= 2;
+                    partitionsL[index_p].values = realloc(partitionsL[index_p].values, partitionsL[index_p].p_capacity * sizeof(int));
+                    partitionsL[index_p].positions = realloc(partitionsL[index_p].positions, partitionsL[index_p].p_capacity * sizeof(size_t));
+                }
+            }
+            for (size_t j = 0; j < lenR; j++)
+            {
+                int index_p = R[j] / p_div;
+                partitionsR[index_p].values[partitionsR[index_p].p_len] = R[j];
+                partitionsR[index_p].positions[partitionsR[index_p].p_len] = j;
+                partitionsR[index_p].p_len++;
+                if (partitionsR[index_p].p_len >= partitionsR[index_p].p_capacity) {
+                    // reallocate and increment size by twice
+                    partitionsR[index_p].p_capacity *= 2;
+                    partitionsR[index_p].values = realloc(partitionsR[index_p].values, partitionsR[index_p].p_capacity * sizeof(int));
+                    partitionsR[index_p].positions = realloc(partitionsR[index_p].positions, partitionsR[index_p].p_capacity * sizeof(size_t));
+                }
+            }
+
+            for (int i = 0; i < NUM_PARTITIONS; i++) {
+                // always hash on the small column
+                hashtable *ht = malloc(sizeof(struct hashtable));
+                // compare and swap
+                if (partitionsR[i].p_len <= partitionsR[i].p_len)
+                {
+                    size_t res[partitionsR[i].p_len];
+                    allocate_ht(ht, partitionsR[i].p_len);
+                    for (size_t j = 0; j < partitionsR[i].p_len; j++)
+                    {
+                        put_ht(ht, partitionsR[i].values[j], partitionsR[i].positions[j]);
+                    }
+                    for (size_t t = 0; t < partitionsL[i].p_len; t++)
+                    {
+                        size_t res_len = get_ht(ht, partitionsL[i].values[t], res);
+                        for (size_t j = 0; j < res_len; j++)
+                        {
+                            resL[k] = partitionsL[i].positions[t];
+                            resR[k++] = res[j];
+                        }
+                    }
+                }
+                else
+                {
+                    size_t res[partitionsL[i].p_len];
+                    allocate_ht(ht, partitionsL[i].p_len);
+                    for (size_t j = 0; j < partitionsL[i].p_len; j++)
+                    {
+                        put_ht(ht, partitionsL[i].values[j], partitionsL[i].positions[j]);
+                    }
+                    for (size_t t = 0; t < partitionsR[t].p_len; t++)
+                    {
+                        size_t res_len = get_ht(ht, partitionsR[i].values[t], res);
+                        for (size_t j = 0; j < res_len; j++)
+                        {
+                            resR[k] = partitionsR[i].positions[t];
+                            resL[k++] = res[j];
+                        }
+                    }
+                }
+                deallocate_ht(ht);
+            }
+            
+            
+        }
+    }
+
+    Result *resultL = malloc(sizeof(Result));
     resultL->data_type = LONG;
     resultL->num_tuples = k;
     resultL->payload = resL;
     add_context(resultL, client_context, query->operator_fields.join_operator.l_name);
-    Result* resultR = malloc(sizeof(Result));
+    Result *resultR = malloc(sizeof(Result));
     resultR->data_type = LONG;
     resultR->num_tuples = k;
     resultR->payload = resR;
     add_context(resultR, client_context, query->operator_fields.join_operator.r_name);
-    
-    send_message->status = OK_DONE;
 
-    
+    send_message->status = OK_DONE;
 }
 
 void execute_print(DbOperator *query, message *send_message)
@@ -1441,7 +1584,8 @@ void execute_print(DbOperator *query, message *send_message)
     send_message->status = OK_WAIT_FOR_RESPONSE;
     send(query->client_fd, send_message, sizeof(message), 0);
     size_t offset = 0;
-    while (offset < str_len) {
+    while (offset < str_len)
+    {
         len = send(query->client_fd, print_chars + offset, DEFAULT_QUERY_BUFFER_SIZE, 0);
         offset += len;
         // printf("sent %ld, remain %ld\n", offset, str_len - offset);
@@ -1659,7 +1803,8 @@ void handle_client(int client_socket)
             {
                 continue;
             }
-            if (send_message.status == OK_SHUTDOWN) {
+            if (send_message.status == OK_SHUTDOWN)
+            {
                 // send(client_socket, &(send_message), sizeof(message), 0);
                 exit(0);
             }
