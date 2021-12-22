@@ -24,5 +24,5 @@ int put_ht(hashtable* ht, keyType key, valType value);
 size_t get_ht(hashtable* ht, keyType key, valType* res);
 int erase_ht(hashtable* ht, keyType key);
 int deallocate_ht(hashtable* ht);
-
+int deallocate_ht_inner(hashtable* ht);
 #endif

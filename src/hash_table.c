@@ -82,7 +82,6 @@ int put_ht(hashtable* ht, keyType key, valType value) { // O(1) for put
 // }
 size_t get_ht(hashtable* ht, keyType key, valType* res) { // O(K) for get, K is the length of entry
     struct bucket* root = ht->entries[hash_function_ht(key) % ht->size];
-    // printf("%d\n",hash_function_ht(key) % ht->size);
     size_t i = 0;
     while(root != NULL){
         if(root->key == key){
@@ -132,5 +131,21 @@ int deallocate_ht(hashtable* ht) {
     }
     free(ht->entries);
     free(ht);
+    return 0;
+}
+
+int deallocate_ht_inner(hashtable* ht) {
+    for(int i = 0;i<ht->size;i++){
+        struct bucket* prev = ht->entries[i];
+        struct bucket* next = prev;
+        while(next!=NULL){
+            prev = next;
+            next = next->next;
+            struct bucket* current = prev;
+            free_bucket_ht(current);
+        }
+    }
+    free(ht->entries);
+
     return 0;
 }

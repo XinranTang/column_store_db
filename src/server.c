@@ -1332,7 +1332,6 @@ void execute_join(DbOperator *query, message *send_message)
     size_t *resL = malloc(lenR * lenL * sizeof(size_t));
     size_t *resR = malloc(lenR * lenL * sizeof(size_t));
     size_t k = 0;
-
     if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN)
     {
 
@@ -1400,7 +1399,7 @@ void execute_join(DbOperator *query, message *send_message)
             // find max value in L
             int max;
 	        max = L[0];
-	        for(int t = 1;t < lenL; t++)
+	        for(size_t t = 1;t < lenL; t++)
             {
                 if(L[t] > max) max = L[t];
 	        }
@@ -1409,6 +1408,7 @@ void execute_join(DbOperator *query, message *send_message)
             // TODO: free partitions
             Partition *partitionsL = malloc(NUM_PARTITIONS * sizeof(Partition));
             Partition *partitionsR = malloc(NUM_PARTITIONS * sizeof(Partition));
+            hashtable *hts = malloc(NUM_PARTITIONS * sizeof(struct hashtable));
             for (int i = 0; i < NUM_PARTITIONS; i++) {
                 partitionsL[i].p_capacity = capacity;
                 partitionsL[i].p_len = 0;
@@ -1423,9 +1423,9 @@ void execute_join(DbOperator *query, message *send_message)
             // 2. build partitions
             for (size_t j = 0; j < lenL; j++)
             {
-                int index_p = L[j] / p_div;
+                int index_p = p_div == 0 ? 0 : L[j] / p_div;
                 partitionsL[index_p].values[partitionsL[index_p].p_len] = L[j];
-                partitionsL[index_p].positions[partitionsL[index_p].p_len] = j;
+                partitionsL[index_p].positions[partitionsL[index_p].p_len] = posL[j];
                 partitionsL[index_p].p_len++;
                 if (partitionsL[index_p].p_len >= partitionsL[index_p].p_capacity) {
                     // reallocate and increment size by twice
@@ -1436,9 +1436,9 @@ void execute_join(DbOperator *query, message *send_message)
             }
             for (size_t j = 0; j < lenR; j++)
             {
-                int index_p = R[j] / p_div;
+                int index_p = p_div == 0 ? 0 : R[j] / p_div;
                 partitionsR[index_p].values[partitionsR[index_p].p_len] = R[j];
-                partitionsR[index_p].positions[partitionsR[index_p].p_len] = j;
+                partitionsR[index_p].positions[partitionsR[index_p].p_len] = posR[j];
                 partitionsR[index_p].p_len++;
                 if (partitionsR[index_p].p_len >= partitionsR[index_p].p_capacity) {
                     // reallocate and increment size by twice
@@ -1449,20 +1449,25 @@ void execute_join(DbOperator *query, message *send_message)
             }
 
             for (int i = 0; i < NUM_PARTITIONS; i++) {
+                if (partitionsR[i].p_len * partitionsL[i].p_len == 0) {
+                    continue;
+                }
                 // always hash on the small column
-                hashtable *ht = malloc(sizeof(struct hashtable));
+
                 // compare and swap
-                if (partitionsR[i].p_len <= partitionsR[i].p_len)
-                {
+                if (partitionsR[i].p_len <= partitionsL[i].p_len)
+                {   
+
                     size_t res[partitionsR[i].p_len];
-                    allocate_ht(ht, partitionsR[i].p_len);
+
+                    allocate_ht(&hts[i], partitionsR[i].p_len);
                     for (size_t j = 0; j < partitionsR[i].p_len; j++)
                     {
-                        put_ht(ht, partitionsR[i].values[j], partitionsR[i].positions[j]);
+                        put_ht(&hts[i], partitionsR[i].values[j], partitionsR[i].positions[j]);
                     }
                     for (size_t t = 0; t < partitionsL[i].p_len; t++)
                     {
-                        size_t res_len = get_ht(ht, partitionsL[i].values[t], res);
+                        size_t res_len = get_ht(&hts[i], partitionsL[i].values[t], res);
                         for (size_t j = 0; j < res_len; j++)
                         {
                             resL[k] = partitionsL[i].positions[t];
@@ -1473,14 +1478,15 @@ void execute_join(DbOperator *query, message *send_message)
                 else
                 {
                     size_t res[partitionsL[i].p_len];
-                    allocate_ht(ht, partitionsL[i].p_len);
+
+                    allocate_ht(&hts[i],partitionsL[i].p_len);
                     for (size_t j = 0; j < partitionsL[i].p_len; j++)
                     {
-                        put_ht(ht, partitionsL[i].values[j], partitionsL[i].positions[j]);
+                        put_ht(&hts[i], partitionsL[i].values[j], partitionsL[i].positions[j]);
                     }
-                    for (size_t t = 0; t < partitionsR[t].p_len; t++)
+                    for (size_t t = 0; t < partitionsR[i].p_len; t++)
                     {
-                        size_t res_len = get_ht(ht, partitionsR[i].values[t], res);
+                        size_t res_len = get_ht(&hts[i], partitionsR[i].values[t], res);
                         for (size_t j = 0; j < res_len; j++)
                         {
                             resR[k] = partitionsR[i].positions[t];
@@ -1488,13 +1494,23 @@ void execute_join(DbOperator *query, message *send_message)
                         }
                     }
                 }
-                deallocate_ht(ht);
             }
-            
-            
+            for (int i = 0; i < NUM_PARTITIONS; i++) {
+                if (hts[i].length != 0) {
+                    deallocate_ht_inner(&hts[i]);
+                }
+                
+                free(partitionsL[i].values);
+                free(partitionsL[i].positions);
+
+                free(partitionsR[i].values);
+                free(partitionsR[i].positions);
+            }
+            free(partitionsR);
+            free(partitionsL);
+            free(hts); 
         }
     }
-
     Result *resultL = malloc(sizeof(Result));
     resultL->data_type = LONG;
     resultL->num_tuples = k;
