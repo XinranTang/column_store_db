@@ -1420,7 +1420,7 @@ void execute_join(DbOperator *query, message *send_message)
                 partitionsR[i].positions = malloc(capacity * sizeof(size_t));
             }
 
-            // 2. build partitions
+
             for (size_t j = 0; j < lenL; j++)
             {
                 int index_p = L[j] / p_div;
@@ -1636,6 +1636,7 @@ void execute_batch_select(DbOperator *query, message *send_message)
         return;
     }
     send_message->status = BATCH_WAIT;
+    free(args);
 }
 // TODO: check batch end
 void execute_batch_end(ClientContext *client_context, message *send_message)
