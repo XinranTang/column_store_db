@@ -1648,7 +1648,6 @@ void execute_batch_select(DbOperator *query, message *send_message)
         return;
     }
     send_message->status = BATCH_WAIT;
-    free(args);
 }
 // TODO: check batch end
 void execute_batch_end(ClientContext *client_context, message *send_message)
