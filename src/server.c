@@ -52,6 +52,8 @@ typedef struct thread_args
     Partition *partitionL;
     size_t *resL;
     size_t *resR;
+    size_t *posL;
+    size_t *pos;
     size_t len;
     int *column;
     int p_div;
@@ -1330,7 +1332,7 @@ void grace_hash_join_partition(void *args)
     {
         int index_p = arguments->column[j] / arguments->p_div;
         arguments->partitions[index_p].values[arguments->partitions[index_p].p_len] = arguments->column[j];
-        arguments->partitions[index_p].positions[arguments->partitions[index_p].p_len] = j;
+        arguments->partitions[index_p].positions[arguments->partitions[index_p].p_len] = arguments->pos[j];
         arguments->partitions[index_p].p_len++;
         if (arguments->partitions[index_p].p_len >= arguments->partitions[index_p].p_capacity)
         {
@@ -1350,6 +1352,15 @@ void grace_hash_join_partition(void *args)
 void grace_hash_join(void *args)
 {
     thread_args *arguments = (thread_args *)args;
+    if (arguments->partitionR->p_len * arguments->partitionL->p_len == 0) {
+        pthread_mutex_lock(&lock);
+        // record the number of successful tasks completed
+        done++;
+        pthread_mutex_unlock(&lock);
+        // free arguments
+        free(arguments);
+        return;
+    }
     // always hash on the small column
     hashtable *ht = malloc(sizeof(struct hashtable));
     // compare and swap
@@ -1418,6 +1429,7 @@ void execute_join(DbOperator *query, message *send_message)
     size_t *resL = malloc(lenR * lenL * sizeof(size_t));
     size_t *resR = malloc(lenR * lenL * sizeof(size_t));
     size_t k = 0;
+    mutex_k = 0;
     if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN)
     {
 
@@ -1522,6 +1534,7 @@ void execute_join(DbOperator *query, message *send_message)
             argsL->len = lenL;
             argsL->column = L;
             argsL->p_div = p_div;
+            argsL->pos = posL;
             argsL->send_message = send_message;
             while (tasks - done >= THREAD)
             {
@@ -1544,6 +1557,7 @@ void execute_join(DbOperator *query, message *send_message)
             argsR->len = lenR;
             argsR->column = R;
             argsR->p_div = p_div;
+            argsR->pos = posR;
             argsR->send_message = send_message;
             if (threadpool_add(pool, &grace_hash_join_partition, (void *)argsR, 0) == 0)
             {
@@ -1589,6 +1603,7 @@ void execute_join(DbOperator *query, message *send_message)
             {
                 sleep(0.01); // TODO: change sleep time
             }
+            k = mutex_k;
             // At this point, destroy the thread pool, 0 for immediate_shutdown
             if (threadpool_destroy(pool, 0) != 0)
             {
