@@ -1418,7 +1418,6 @@ void execute_join(DbOperator *query, message *send_message)
     size_t *resL = malloc(lenR * lenL * sizeof(size_t));
     size_t *resR = malloc(lenR * lenL * sizeof(size_t));
     size_t k = 0;
-
     if (query->operator_fields.join_operator.joinType == NESTED_LOOP_JOIN)
     {
 
@@ -1485,8 +1484,9 @@ void execute_join(DbOperator *query, message *send_message)
             // 1. find ranges
             // find max value in L
             int max;
-            max = L[0];
-            for (int t = 1; t < lenL; t++)
+	        max = L[0];
+	        for(size_t t = 1;t < lenL; t++)
+
             {
                 if (L[t] > max)
                     max = L[t];
@@ -1585,7 +1585,6 @@ void execute_join(DbOperator *query, message *send_message)
             pthread_mutex_destroy(&lock);
         }
     }
-
     Result *resultL = malloc(sizeof(Result));
     resultL->data_type = LONG;
     resultL->num_tuples = k;
