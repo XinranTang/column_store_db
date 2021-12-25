@@ -40,7 +40,7 @@
 #define NUM_PARTITIONS 7          // = 32KB / 4KB - 1 = 7
 threadpool_t *pool;
 int tasks = 0, done = 0;
-size_t mutex_k=0;
+size_t mutex_k = 0;
 pthread_mutex_t lock;
 pthread_mutex_t grace_hash_lock;
 typedef struct thread_args
@@ -1356,7 +1356,7 @@ void grace_hash_join(void *args)
     if (arguments->partitionR->p_len <= arguments->partitionL->p_len)
     {
         size_t res[arguments->partitionR->p_len];
-        allocate_ht(ht, arguments->partitionR->p_len );
+        allocate_ht(ht, arguments->partitionR->p_len);
         for (size_t j = 0; j < arguments->partitionR->p_len; j++)
         {
             put_ht(ht, arguments->partitionR->values[j], arguments->partitionR->positions[j]);
@@ -1484,8 +1484,8 @@ void execute_join(DbOperator *query, message *send_message)
             // 1. find ranges
             // find max value in L
             int max;
-	        max = L[0];
-	        for(size_t t = 1;t < lenL; t++)
+            max = L[0];
+            for (size_t t = 1; t < lenL; t++)
 
             {
                 if (L[t] > max)
@@ -1523,6 +1523,10 @@ void execute_join(DbOperator *query, message *send_message)
             argsL->column = L;
             argsL->p_div = p_div;
             argsL->send_message = send_message;
+            while (tasks - done >= THREAD)
+            {
+                sleep(0.01);
+            }
             if (threadpool_add(pool, &grace_hash_join_partition, (void *)argsL, 0) == 0)
             {
                 pthread_mutex_lock(&lock);
