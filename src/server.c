@@ -37,15 +37,24 @@
 #define THREAD 32
 #define QUEUE 256
 #define CACHE_SIZE_THRESHOLD 1000 // for 32 KB L1 cache to store the hash table
-#define NUM_PARTITIONS 7 // = 32KB / 4KB - 1 = 7
+#define NUM_PARTITIONS 7          // = 32KB / 4KB - 1 = 7
 threadpool_t *pool;
 int tasks = 0, done = 0;
+size_t mutex_k=0;
 pthread_mutex_t lock;
-
+pthread_mutex_t grace_hash_lock;
 typedef struct thread_args
 {
     DbOperator *query;
     message *send_message;
+    Partition *partitions;
+    Partition *partitionR;
+    Partition *partitionL;
+    size_t *resL;
+    size_t *resR;
+    size_t len;
+    int *column;
+    int p_div;
 } thread_args;
 
 void execute_create(DbOperator *query, message *send_message)
@@ -1314,7 +1323,84 @@ void execute_aggregate(DbOperator *query, message *send_message)
     }
     add_context(result, client_context, query->operator_fields.aggregate_operator.intermediate);
 }
-
+void grace_hash_join_partition(void *args)
+{
+    thread_args *arguments = (thread_args *)args;
+    for (size_t j = 0; j < arguments->len; j++)
+    {
+        int index_p = arguments->column[j] / arguments->p_div;
+        arguments->partitions[index_p].values[arguments->partitions[index_p].p_len] = arguments->column[j];
+        arguments->partitions[index_p].positions[arguments->partitions[index_p].p_len] = j;
+        arguments->partitions[index_p].p_len++;
+        if (arguments->partitions[index_p].p_len >= arguments->partitions[index_p].p_capacity)
+        {
+            // reallocate and increment size by twice
+            arguments->partitions[index_p].p_capacity *= 2;
+            arguments->partitions[index_p].values = realloc(arguments->partitions[index_p].values, arguments->partitions[index_p].p_capacity * sizeof(int));
+            arguments->partitions[index_p].positions = realloc(arguments->partitions[index_p].positions, arguments->partitions[index_p].p_capacity * sizeof(size_t));
+        }
+    }
+    pthread_mutex_lock(&lock);
+    // record the number of successful tasks completed
+    done++;
+    pthread_mutex_unlock(&lock);
+    // free arguments
+    free(arguments);
+}
+void grace_hash_join(void *args)
+{
+    thread_args *arguments = (thread_args *)args;
+    // always hash on the small column
+    hashtable *ht = malloc(sizeof(struct hashtable));
+    // compare and swap
+    if (arguments->partitionR->p_len <= arguments->partitionL->p_len)
+    {
+        size_t res[arguments->partitionR->p_len];
+        allocate_ht(ht, arguments->partitionR->p_len );
+        for (size_t j = 0; j < arguments->partitionR->p_len; j++)
+        {
+            put_ht(ht, arguments->partitionR->values[j], arguments->partitionR->positions[j]);
+        }
+        for (size_t t = 0; t < arguments->partitionL->p_len; t++)
+        {
+            size_t res_len = get_ht(ht, arguments->partitionL->values[t], res);
+            for (size_t j = 0; j < res_len; j++)
+            {
+                pthread_mutex_lock(&grace_hash_lock);
+                arguments->resL[mutex_k] = arguments->partitionL->positions[t];
+                arguments->resR[mutex_k++] = res[j];
+                pthread_mutex_unlock(&grace_hash_lock);
+            }
+        }
+    }
+    else
+    {
+        size_t res[arguments->partitionL->p_len];
+        allocate_ht(ht, arguments->partitionL->p_len);
+        for (size_t j = 0; j < arguments->partitionL->p_len; j++)
+        {
+            put_ht(ht, arguments->partitionL->values[j], arguments->partitionL->positions[j]);
+        }
+        for (size_t t = 0; t < arguments->partitionR->p_len; t++)
+        {
+            size_t res_len = get_ht(ht, arguments->partitionR->values[t], res);
+            for (size_t j = 0; j < res_len; j++)
+            {
+                pthread_mutex_lock(&grace_hash_lock);
+                arguments->resR[mutex_k] = arguments->partitionR->positions[t];
+                arguments->resL[mutex_k++] = res[j];
+                pthread_mutex_unlock(&grace_hash_lock);
+            }
+        }
+    }
+    deallocate_ht(ht);
+    pthread_mutex_lock(&lock);
+    // record the number of successful tasks completed
+    done++;
+    pthread_mutex_unlock(&lock);
+    // free arguments
+    free(arguments);
+}
 void execute_join(DbOperator *query, message *send_message)
 {
     ClientContext *client_context = query->context;
@@ -1399,17 +1485,19 @@ void execute_join(DbOperator *query, message *send_message)
             // 1. find ranges
             // find max value in L
             int max;
-	        max = L[0];
-	        for(int t = 1;t < lenL; t++)
+            max = L[0];
+            for (int t = 1; t < lenL; t++)
             {
-                if(L[t] > max) max = L[t];
-	        }
-            int p_div = max / (NUM_PARTITIONS-1); // #_p = value / p_div
+                if (L[t] > max)
+                    max = L[t];
+            }
+            int p_div = max / (NUM_PARTITIONS - 1); // #_p = value / p_div
             size_t capacity = lenL / NUM_PARTITIONS;
             // TODO: free partitions
             Partition *partitionsL = malloc(NUM_PARTITIONS * sizeof(Partition));
             Partition *partitionsR = malloc(NUM_PARTITIONS * sizeof(Partition));
-            for (int i = 0; i < NUM_PARTITIONS; i++) {
+            for (int i = 0; i < NUM_PARTITIONS; i++)
+            {
                 partitionsL[i].p_capacity = capacity;
                 partitionsL[i].p_len = 0;
                 partitionsL[i].values = malloc(capacity * sizeof(int));
@@ -1420,78 +1508,81 @@ void execute_join(DbOperator *query, message *send_message)
                 partitionsR[i].positions = malloc(capacity * sizeof(size_t));
             }
 
-
-            for (size_t j = 0; j < lenL; j++)
+            // 2. build partitions
+            tasks = 0;
+            done = 0;
+            pthread_mutex_init(&lock, NULL);
+            if ((pool = threadpool_create(2, QUEUE, 0)) == NULL)
             {
-                int index_p = L[j] / p_div;
-                partitionsL[index_p].values[partitionsL[index_p].p_len] = L[j];
-                partitionsL[index_p].positions[partitionsL[index_p].p_len] = j;
-                partitionsL[index_p].p_len++;
-                if (partitionsL[index_p].p_len >= partitionsL[index_p].p_capacity) {
-                    // reallocate and increment size by twice
-                    partitionsL[index_p].p_capacity *= 2;
-                    partitionsL[index_p].values = realloc(partitionsL[index_p].values, partitionsL[index_p].p_capacity * sizeof(int));
-                    partitionsL[index_p].positions = realloc(partitionsL[index_p].positions, partitionsL[index_p].p_capacity * sizeof(size_t));
-                }
+                send_message->status = EXECUTION_ERROR;
+                return;
             }
-            for (size_t j = 0; j < lenR; j++)
+            thread_args *argsL = malloc(sizeof(thread_args));
+            argsL->partitions = partitionsL;
+            argsL->len = lenL;
+            argsL->column = L;
+            argsL->p_div = p_div;
+            argsL->send_message = send_message;
+            if (threadpool_add(pool, &grace_hash_join_partition, (void *)argsL, 0) == 0)
             {
-                int index_p = R[j] / p_div;
-                partitionsR[index_p].values[partitionsR[index_p].p_len] = R[j];
-                partitionsR[index_p].positions[partitionsR[index_p].p_len] = j;
-                partitionsR[index_p].p_len++;
-                if (partitionsR[index_p].p_len >= partitionsR[index_p].p_capacity) {
-                    // reallocate and increment size by twice
-                    partitionsR[index_p].p_capacity *= 2;
-                    partitionsR[index_p].values = realloc(partitionsR[index_p].values, partitionsR[index_p].p_capacity * sizeof(int));
-                    partitionsR[index_p].positions = realloc(partitionsR[index_p].positions, partitionsR[index_p].p_capacity * sizeof(size_t));
-                }
+                pthread_mutex_lock(&lock);
+                tasks++;
+                pthread_mutex_unlock(&lock);
+            }
+            else
+            {
+                cs165_log(stdout, "Start pool failed\n");
+                send_message->status = EXECUTION_ERROR;
+                return;
+            }
+            thread_args *argsR = malloc(sizeof(thread_args));
+            argsR->partitions = partitionsR;
+            argsR->len = lenR;
+            argsR->column = R;
+            argsR->p_div = p_div;
+            argsR->send_message = send_message;
+            if (threadpool_add(pool, &grace_hash_join_partition, (void *)argsR, 0) == 0)
+            {
+                pthread_mutex_lock(&lock);
+                tasks++;
+                pthread_mutex_unlock(&lock);
+            }
+            else
+            {
+                cs165_log(stdout, "Start pool failed\n");
+                send_message->status = EXECUTION_ERROR;
+                return;
             }
 
-            for (int i = 0; i < NUM_PARTITIONS; i++) {
-                // always hash on the small column
-                hashtable *ht = malloc(sizeof(struct hashtable));
-                // compare and swap
-                if (partitionsR[i].p_len <= partitionsR[i].p_len)
+            while (done < tasks)
+            {
+                sleep(0.01);
+            }
+            pthread_mutex_init(&grace_hash_lock, NULL);
+
+            for (int i = 0; i < NUM_PARTITIONS; i++)
+            {
+                thread_args *args = malloc(sizeof(thread_args));
+                args->partitionR = &partitionsR[i];
+                args->partitionL = &partitionsL[i];
+                args->resR = resR;
+                args->resL = resL;
+
+                if (threadpool_add(pool, &grace_hash_join, (void *)args, 0) == 0)
                 {
-                    size_t res[partitionsR[i].p_len];
-                    allocate_ht(ht, partitionsR[i].p_len);
-                    for (size_t j = 0; j < partitionsR[i].p_len; j++)
-                    {
-                        put_ht(ht, partitionsR[i].values[j], partitionsR[i].positions[j]);
-                    }
-                    for (size_t t = 0; t < partitionsL[i].p_len; t++)
-                    {
-                        size_t res_len = get_ht(ht, partitionsL[i].values[t], res);
-                        for (size_t j = 0; j < res_len; j++)
-                        {
-                            resL[k] = partitionsL[i].positions[t];
-                            resR[k++] = res[j];
-                        }
-                    }
+                    pthread_mutex_lock(&lock);
+                    tasks++;
+                    pthread_mutex_unlock(&lock);
                 }
                 else
                 {
-                    size_t res[partitionsL[i].p_len];
-                    allocate_ht(ht, partitionsL[i].p_len);
-                    for (size_t j = 0; j < partitionsL[i].p_len; j++)
-                    {
-                        put_ht(ht, partitionsL[i].values[j], partitionsL[i].positions[j]);
-                    }
-                    for (size_t t = 0; t < partitionsR[t].p_len; t++)
-                    {
-                        size_t res_len = get_ht(ht, partitionsR[i].values[t], res);
-                        for (size_t j = 0; j < res_len; j++)
-                        {
-                            resR[k] = partitionsR[i].positions[t];
-                            resL[k++] = res[j];
-                        }
-                    }
+                    cs165_log(stdout, "Start pool failed\n");
+                    send_message->status = EXECUTION_ERROR;
+                    return;
                 }
-                deallocate_ht(ht);
             }
-            
-            
+            pthread_mutex_destroy(&grace_hash_lock);
+            pthread_mutex_destroy(&lock);
         }
     }
 
@@ -1653,6 +1744,7 @@ void execute_batch_end(ClientContext *client_context, message *send_message)
         return;
     }
     client_context->batch_mode = false;
+    pthread_mutex_destroy(&lock);
     // free(client_context->batch_queries);
     send_message->status = OK_DONE;
 }
