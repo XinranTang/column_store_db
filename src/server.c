@@ -1558,7 +1558,7 @@ void execute_join(DbOperator *query, message *send_message)
                 return;
             }
 
-            while (done < tasks)
+            while (tasks > done)
             {
                 sleep(0.01);
             }
@@ -1584,6 +1584,17 @@ void execute_join(DbOperator *query, message *send_message)
                     send_message->status = EXECUTION_ERROR;
                     return;
                 }
+            }
+            while (tasks > done)
+            {
+                sleep(0.01); // TODO: change sleep time
+            }
+            // At this point, destroy the thread pool, 0 for immediate_shutdown
+            if (threadpool_destroy(pool, 0) != 0)
+            {
+                cs165_log(stdout, "Destroy pool failed\n");
+                send_message->status = EXECUTION_ERROR; // TODO: check how to deal with pool destruction error
+                return;
             }
             pthread_mutex_destroy(&grace_hash_lock);
             pthread_mutex_destroy(&lock);
